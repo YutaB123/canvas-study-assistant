@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<meta name="theme-color" content="#0b141a" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Study" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="apple-touch-icon" href="/static/icon-180.png" />
+<title>Study Assistant</title>
+<style>
+  :root { --bg:#0b141a; --bar:#101c24; --me:#0a84ff; --them:#26323b; --text:#e9edf0; --muted:#8a99a5; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  #app { display:flex; flex-direction:column; height:100dvh; }
+  header { background:var(--bar); padding:max(env(safe-area-inset-top),10px) 8px 10px;
+    border-bottom:1px solid #1c2a33; position:sticky; top:0; z-index:5;
+    display:flex; align-items:center; gap:6px; }
+  header .title { flex:1; text-align:center; font-weight:600; font-size:17px; }
+  header .title small { display:block; font-weight:400; font-size:12px; color:var(--muted); margin-top:2px; }
+  .iconbtn { width:38px; height:38px; border:none; background:transparent; color:var(--text);
+    font-size:20px; border-radius:50%; cursor:pointer; flex:0 0 auto; }
+  .iconbtn:active { background:#1c2a33; }
+  #menu { position:absolute; top:calc(max(env(safe-area-inset-top),10px) + 42px); right:8px;
+    background:#16242d; border:1px solid #243440; border-radius:12px; overflow:hidden; z-index:9;
+    box-shadow:0 8px 30px rgba(0,0,0,.5); min-width:210px; }
+  #menu button { display:flex; align-items:center; gap:10px; width:100%; padding:13px 16px; border:none;
+    background:none; color:var(--text); font-size:15px; text-align:left; cursor:pointer; }
+  #menu button:active { background:#1c2a33; }
+  #menu .sep { height:1px; background:#243440; }
+  #log { flex:1; overflow-y:auto; padding:14px 12px 6px; display:flex; flex-direction:column; gap:8px;
+    -webkit-overflow-scrolling:touch; }
+  .row { display:flex; } .row.me { justify-content:flex-end; } .row.them { justify-content:flex-start; }
+  .bubble { max-width:78%; padding:9px 13px; border-radius:19px; font-size:16px; line-height:1.35;
+    white-space:pre-wrap; word-wrap:break-word; }
+  .me .bubble { background:var(--me); color:#fff; border-bottom-right-radius:5px; }
+  .them .bubble { background:var(--them); color:var(--text); border-bottom-left-radius:5px; }
+  .bubble a.doc { display:inline-block; margin-top:6px; padding:7px 12px; background:rgba(255,255,255,.14);
+    border-radius:12px; color:inherit; text-decoration:none; font-size:14px; }
+  .dots { display:inline-flex; gap:4px; }
+  .dots i { width:7px; height:7px; border-radius:50%; background:var(--muted); display:block;
+    animation:blink 1.3s infinite both; }
+  .dots i:nth-child(2){ animation-delay:.2s; } .dots i:nth-child(3){ animation-delay:.4s; }
+  @keyframes blink { 0%,80%,100%{opacity:.25;} 40%{opacity:1;} }
+  footer { background:var(--bar); padding:8px 10px calc(env(safe-area-inset-bottom) + 8px);
+    border-top:1px solid #1c2a33; display:flex; gap:8px; align-items:flex-end; }
+  textarea { flex:1; resize:none; border:none; outline:none; background:#0e1a22; color:var(--text);
+    border-radius:20px; padding:10px 14px; font-size:16px; max-height:120px; line-height:1.3; font-family:inherit; }
+  button#send { border:none; background:var(--me); color:#fff; width:40px; height:40px; border-radius:50%;
+    font-size:19px; flex:0 0 auto; cursor:pointer; } button#send:disabled { opacity:.4; }
+  #gate { position:fixed; inset:0; background:var(--bg); display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:14px; padding:24px; text-align:center; z-index:20; }
+  #gate h1 { font-size:20px; margin:0; } #gate p { color:var(--muted); margin:0; font-size:14px; }
+  #gate input { font-size:16px; padding:11px 14px; border-radius:12px; border:1px solid #26323b;
+    background:#0e1a22; color:var(--text); width:min(280px,80vw); text-align:center; }
+  #gate button { font-size:16px; padding:11px 22px; border-radius:12px; border:none; background:var(--me);
+    color:#fff; cursor:pointer; }
+  #gate .err { color:#ff6b6b; font-size:13px; min-height:16px; }
+  #toast { position:fixed; bottom:84px; left:50%; transform:translateX(-50%); background:#243440;
+    color:var(--text); padding:9px 16px; border-radius:20px; font-size:14px; z-index:30; opacity:0;
+    transition:opacity .25s; pointer-events:none; }
+  #toast.show { opacity:1; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <span style="width:38px"></span>
+    <div class="title">Study Assistant<small>your private line · always on</small></div>
+    <button class="iconbtn" id="menuBtn" aria-label="Menu">⋯</button>
+  </header>
+  <div id="menu" class="hidden">
+    <button id="mNotify">🔔 <span>Enable notifications</span></button>
+    <div class="sep"></div>
+    <button id="mInstall" class="hidden">📲 <span>Install app</span></button>
+    <div class="sep hidden" id="mInstallSep"></div>
+    <button id="mClear">🗑️ <span>Clear chat</span></button>
+  </div>
+  <div id="log"></div>
+  <footer>
+    <textarea id="text" rows="1" placeholder="Message" autocomplete="off"></textarea>
+    <button id="send" aria-label="Send">↑</button>
+  </footer>
+</div>
+
+<div id="gate">
+  <h1>Study Assistant</h1>
+  <p>Enter your passcode to unlock the chat.</p>
+  <input id="pass" type="password" inputmode="text" placeholder="passcode" autocomplete="off" />
+  <button id="unlock">Unlock</button>
+  <div class="err" id="gateErr"></div>
+</div>
+<div id="toast"></div>
+
+<script>
+const log = document.getElementById('log');
+const ta = document.getElementById('text');
+const sendBtn = document.getElementById('send');
+const gate = document.getElementById('gate');
+const menu = document.getElementById('menu');
+let KEY = localStorage.getItem('chatKey') || '';
+let lastId = 0, busy = false, deferredInstall = null, vapidKey = '';
+
+const CLEAR_RE = /^(clear|clear chat|clear all|clear everything|reset)$/i;
+function esc(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function atBottom(){ return log.scrollHeight - log.scrollTop - log.clientHeight < 80; }
+function toBottom(){ log.scrollTop = log.scrollHeight; }
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2200); }
+
+function addBubble(role, text, media){
+  const stick = atBottom();
+  const row = document.createElement('div');
+  row.className = 'row ' + (role === 'user' ? 'me' : 'them');
+  let inner = esc(text || '');
+  if (media) inner += `<a class="doc" href="${esc(media)}" target="_blank" rel="noopener">📄 Open file</a>`;
+  row.innerHTML = `<div class="bubble">${inner}</div>`;
+  log.appendChild(row);
+  if (stick || role === 'user') toBottom();
+}
+let typingEl = null;
+function showTyping(){ if (typingEl) return;
+  typingEl = document.createElement('div'); typingEl.className = 'row them';
+  typingEl.innerHTML = '<div class="bubble"><span class="dots"><i></i><i></i><i></i></span></div>';
+  log.appendChild(typingEl); toBottom(); }
+function hideTyping(){ if (typingEl){ typingEl.remove(); typingEl = null; } }
+
+async function api(path, opts={}){
+  opts.headers = Object.assign({'X-Chat-Key': KEY}, opts.headers||{});
+  const r = await fetch(path, opts);
+  if (r.status === 401){ lockOut(); throw new Error('unauthorized'); }
+  return r;
+}
+function lockOut(){ localStorage.removeItem('chatKey'); KEY=''; gate.classList.remove('hidden');
+  document.getElementById('gateErr').textContent = 'Wrong passcode — try again.'; }
+
+async function loadHistory(){
+  const r = await api('/chat/messages?after=0'); const data = await r.json();
+  log.innerHTML = ''; lastId = 0;
+  for (const m of data.messages){ addBubble(m.role, m.text, m.media_url); lastId = Math.max(lastId, m.id); }
+  toBottom();
+}
+async function poll(){
+  if (busy || !KEY) return;
+  try { const r = await api('/chat/messages?after=' + lastId); const data = await r.json();
+    for (const m of data.messages){ addBubble(m.role, m.text, m.media_url); lastId = Math.max(lastId, m.id); }
+  } catch(e){}
+}
+async function send(forced){
+  const text = (forced !== undefined ? forced : ta.value).trim();
+  if (!text || busy) return;
+  busy = true; sendBtn.disabled = true;
+  const wasClear = CLEAR_RE.test(text.replace(/\s+/g,' ').trim());
+  if (forced === undefined){ ta.value=''; ta.style.height='auto'; }
+  addBubble('user', text, ''); showTyping();
+  try {
+    const r = await api('/chat/send', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({text}) });
+    const data = await r.json(); hideTyping();
+    if (wasClear){ log.innerHTML=''; lastId=0; toast('Chat cleared');
+      for (const m of data.messages){ addBubble(m.role, m.text, m.media_url); lastId = Math.max(lastId, m.id); }
+    } else for (const m of data.messages){
+      if (m.role === 'assistant') addBubble(m.role, m.text, m.media_url);
+      lastId = Math.max(lastId, m.id);
+    }
+  } catch(e){ hideTyping(); if (KEY) addBubble('assistant', '⚠️ connection hiccup — try again.', ''); }
+  finally { busy=false; sendBtn.disabled=false; toBottom(); }
+}
+
+// ---- menu ----
+function closeMenu(){ menu.classList.add('hidden'); }
+document.getElementById('menuBtn').addEventListener('click', e=>{ e.stopPropagation();
+  menu.classList.toggle('hidden'); });
+document.addEventListener('click', ()=> closeMenu());
+menu.addEventListener('click', e=> e.stopPropagation());
+
+document.getElementById('mClear').addEventListener('click', ()=>{ closeMenu();
+  if (confirm('Clear this chat? This erases the conversation.')) send('clear'); });
+
+// ---- install (Android Chrome) ----
+window.addEventListener('beforeinstallprompt', e=>{ e.preventDefault(); deferredInstall=e;
+  document.getElementById('mInstall').classList.remove('hidden');
+  document.getElementById('mInstallSep').classList.remove('hidden'); });
+document.getElementById('mInstall').addEventListener('click', async ()=>{ closeMenu();
+  if (!deferredInstall) return; deferredInstall.prompt(); deferredInstall=null;
+  document.getElementById('mInstall').classList.add('hidden');
+  document.getElementById('mInstallSep').classList.add('hidden'); });
+
+// ---- notifications / push ----
+function urlB64ToUint8(b64){ const pad='='.repeat((4-b64.length%4)%4);
+  const s=(b64+pad).replace(/-/g,'+').replace(/_/g,'/'); const raw=atob(s);
+  return Uint8Array.from([...raw].map(c=>c.charCodeAt(0))); }
+async function loadConfig(){ try { const r=await api('/chat/config'); vapidKey=(await r.json()).vapidPublicKey||''; } catch(e){} }
+function refreshNotifyLabel(){
+  const span=document.querySelector('#mNotify span');
+  if (!('Notification' in window) || !vapidKey){ document.getElementById('mNotify').classList.add('hidden'); return; }
+  span.textContent = (Notification.permission === 'granted') ? 'Notifications on ✓' : 'Enable notifications';
+}
+function sameKey(a, b){ if (!a || a.length !== b.length) return false;
+  for (let i=0;i<a.length;i++){ if (a[i] !== b[i]) return false; } return true; }
+async function subscribePush(){
+  if (!vapidKey || !('serviceWorker' in navigator) || !('PushManager' in window)) return false;
+  const reg = await navigator.serviceWorker.ready;
+  const want = urlB64ToUint8(vapidKey);
+  let sub = await reg.pushManager.getSubscription();
+  // If an old subscription used a different VAPID key, it's dead — replace it.
+  if (sub){
+    const cur = (sub.options && sub.options.applicationServerKey)
+      ? new Uint8Array(sub.options.applicationServerKey) : null;
+    if (!sameKey(cur, want)){ try { await sub.unsubscribe(); } catch(e){} sub = null; }
+  }
+  if (!sub){ sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey: want }); }
+  await api('/chat/subscribe', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(sub) });
+  return true;
+}
+document.getElementById('mNotify').addEventListener('click', async ()=>{ closeMenu();
+  if (!('Notification' in window)){ toast('Notifications not supported here'); return; }
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted'){ toast('Notifications blocked — enable in browser settings'); return; }
+  try { await subscribePush(); toast('Notifications on ✓'); refreshNotifyLabel(); }
+  catch(e){ toast('Couldn’t enable notifications'); }
+});
+
+// ---- input wiring ----
+ta.addEventListener('input', ()=>{ ta.style.height='auto'; ta.style.height=Math.min(ta.scrollHeight,120)+'px'; });
+ta.addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
+sendBtn.addEventListener('click', ()=> send());
+
+document.getElementById('unlock').addEventListener('click', ()=>{
+  const v = document.getElementById('pass').value.trim(); if (!v) return;
+  KEY = v; localStorage.setItem('chatKey', v); start(); });
+document.getElementById('pass').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('unlock').click(); });
+
+async function start(){
+  try { await loadHistory(); gate.classList.add('hidden'); }
+  catch(e){ return; }
+  await loadConfig(); refreshNotifyLabel();
+  // If permission was already granted, keep the subscription fresh silently.
+  if (('Notification' in window) && Notification.permission === 'granted'){ try { await subscribePush(); } catch(e){} }
+}
+
+if ('serviceWorker' in navigator){ navigator.serviceWorker.register('/sw.js').catch(()=>{}); }
+setInterval(poll, 4000);
+if (KEY){ start(); } else { gate.classList.remove('hidden'); }
+</script>
+</body>
+</html>
