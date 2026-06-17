@@ -14,3 +14,5 @@ venv/
 # local-only (never commit)
 *.log
 deploy-secrets.local.txt
+qa_send.ps1
+*.ps1
