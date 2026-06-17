@@ -90,8 +90,10 @@ def load_settings(require_secrets: bool = True) -> Settings:
             "CANVAS_BASE_URL", "https://canvas.uw.edu/api/v1"
         ).rstrip("/"),
         canvas_token=secret("CANVAS_TOKEN"),
-        twilio_account_sid=secret("TWILIO_ACCOUNT_SID"),
-        twilio_auth_token=secret("TWILIO_AUTH_TOKEN"),
+        # Twilio is only used in sms/whatsapp mode; optional so a web-only deploy
+        # doesn't need it (its absence used to crash startup on Render).
+        twilio_account_sid=os.environ.get("TWILIO_ACCOUNT_SID", ""),
+        twilio_auth_token=os.environ.get("TWILIO_AUTH_TOKEN", ""),
         twilio_from_number=os.environ.get("TWILIO_FROM_NUMBER", ""),
         channel=os.environ.get("CHANNEL", "sms").lower(),
         whatsapp_from=os.environ.get("WHATSAPP_FROM", "whatsapp:+14155238886"),
