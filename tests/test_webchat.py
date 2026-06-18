@@ -106,7 +106,7 @@ def test_root_redirects_to_chat(tmp_path):
 def test_chat_page_and_pwa_assets_served(tmp_path):
     client, *_ = make_web_client(tmp_path)
     assert client.get("/chat").status_code == 200
-    assert "Study Assistant" in client.get("/chat").text
+    assert "Dubs" in client.get("/chat").text
     assert client.get("/manifest.webmanifest").status_code == 200
     assert client.get("/sw.js").status_code == 200
 
