@@ -157,6 +157,8 @@
     <div class="sep"></div>
     <button id="mDark">🌙 <span>Dark mode</span></button>
     <div class="sep"></div>
+    <button id="mChips">⚡ <span>Hide quick actions</span></button>
+    <div class="sep"></div>
     <button id="mInstall" class="hidden">📲 <span>Install app</span></button>
     <div class="sep hidden" id="mInstallSep"></div>
     <button id="mClear">🗑️ <span>Clear chat</span></button>
@@ -233,9 +235,13 @@ function atBottom(){ return log.scrollHeight - log.scrollTop - log.clientHeight 
 function toBottom(){ log.scrollTop = log.scrollHeight; }
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
   clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2200); }
-// Quick-start chips: visible only until you've said something.
-function updateChips(){ chips.classList.toggle('hidden', !!log.querySelector('.row.me')); }
+// Quick-action chips: shown on every chat, unless turned off in the menu.
+let chipsOff = localStorage.getItem('chipsOff') === '1';
+function updateChips(){ chips.classList.toggle('hidden', chipsOff); }
+function refreshChipsLabel(){ const s=document.querySelector('#mChips span'); if(s) s.textContent = chipsOff ? 'Show quick actions' : 'Hide quick actions'; }
 chips.querySelectorAll('button').forEach(b=> b.addEventListener('click', ()=>{ if(!busy) send(b.dataset.msg); }));
+document.getElementById('mChips').addEventListener('click', ()=>{ closeMenu(); chipsOff=!chipsOff; localStorage.setItem('chipsOff', chipsOff?'1':'0'); updateChips(); refreshChipsLabel(); });
+refreshChipsLabel(); updateChips();
 // Study deck: open the link in a full-screen in-app overlay (no leaving the app).
 const deckOverlay = document.getElementById('deckOverlay');
 const deckFrame = deckOverlay.querySelector('iframe');
