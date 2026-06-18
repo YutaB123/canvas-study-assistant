@@ -80,6 +80,19 @@ def test_recent_for_brain_returns_role_content_oldest_first(tmp_path):
     ]
 
 
+def test_search_matches_title_and_message_text(tmp_path):
+    s = ChatStore(tmp_path / "chats.sqlite")
+    a = s.create_chat(); s.append(a, "user", "what's due in MATH 124 this week")
+    b = s.create_chat(); s.rename(b, "Finals prep"); s.append(b, "assistant", "study chapter 5 tonight")
+    c = s.create_chat(); s.append(c, "user", "hello there")
+
+    assert [x["id"] for x in s.search("MATH 124")] == [a]      # by message/title
+    assert b in [x["id"] for x in s.search("finals")]          # by title, case-insensitive
+    hit = s.search("chapter")
+    assert hit[0]["id"] == b and "chapter 5" in hit[0]["snippet"]
+    assert s.search("zzzzz") == []
+
+
 def test_ensure_chat_creates_one_when_empty_else_returns_existing(tmp_path):
     s = ChatStore(tmp_path / "chats.sqlite")
     first = s.ensure_chat()

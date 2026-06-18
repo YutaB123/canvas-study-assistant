@@ -236,6 +236,21 @@ class ChatStore:
         self._db.execute("DELETE FROM message WHERE chat_id = ?", (chat_id,))
         self._db.commit()
 
+    def search(self, query: str, limit: int = 40) -> list[dict]:
+        """Chats whose title or any message matches `query` (newest first), with a snippet."""
+        q = f"%{(query or '').lower()}%"
+        rows = self._db.execute(
+            "SELECT c.id, c.title, "
+            "  (SELECT m.text FROM message m WHERE m.chat_id = c.id AND lower(m.text) LIKE ? "
+            "   ORDER BY m.mid LIMIT 1) AS snip "
+            "FROM chat c "
+            "WHERE lower(c.title) LIKE ? "
+            "   OR EXISTS (SELECT 1 FROM message m2 WHERE m2.chat_id = c.id AND lower(m2.text) LIKE ?) "
+            "ORDER BY c.id DESC LIMIT ?",
+            (q, q, q, limit),
+        ).fetchall()
+        return [{"id": i, "title": t, "snippet": (s or "")[:90]} for i, t, s in rows]
+
     def recent_for_brain(self, chat_id: int, limit: int = 12) -> list[dict]:
         rows = self._db.execute(
             "SELECT role, text FROM message WHERE chat_id = ? ORDER BY mid DESC LIMIT ?",

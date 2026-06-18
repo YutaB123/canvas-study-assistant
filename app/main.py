@@ -464,6 +464,14 @@ def build_app(deps: AppDeps) -> FastAPI:
         deps.chats.ensure_chat()  # never present an empty sidebar
         return {"chats": deps.chats.list_chats()}
 
+    @app.get("/chats/search")
+    def search_chats(q: str = "", x_chat_key: str = Header(default="")):
+        if not _web_authed(deps, x_chat_key):
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        q = (q or "").strip()
+        chats = deps.chats.search(q) if q else deps.chats.list_chats()
+        return {"chats": chats}
+
     @app.post("/chats")
     def new_chat(x_chat_key: str = Header(default="")):
         if not _web_authed(deps, x_chat_key):

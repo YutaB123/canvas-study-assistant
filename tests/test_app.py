@@ -430,6 +430,18 @@ def test_new_chat_endpoint_seeds_a_greeting(tmp_path):
     assert "enrolled" in msgs[0]["text"].lower()
 
 
+def test_search_chats_endpoint(tmp_path):
+    client, brain, chats = _web_chat_client(tmp_path)
+    a = chats.create_chat(); chats.append(a, "user", "MATH 124 homework due friday")
+    chats.create_chat()
+    r = client.get("/chats/search?q=MATH%20124", headers={"X-Chat-Key": "k"})
+    ids = [c["id"] for c in r.json()["chats"]]
+    assert ids == [a]
+    # empty query returns the full list
+    r2 = client.get("/chats/search?q=", headers={"X-Chat-Key": "k"})
+    assert len(r2.json()["chats"]) >= 2
+
+
 def test_rename_unknown_chat_is_404(tmp_path):
     client, brain, chats = _web_chat_client(tmp_path)
     r = client.patch("/chats/888888", headers={"X-Chat-Key": "k"}, json={"title": "x"})
