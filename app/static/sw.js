@@ -1,7 +1,7 @@
 // Service worker: caches the app shell, and shows push notifications so the
 // assistant can reach you even when the app is closed.
-const CACHE = 'dubly-v23';
-const SHELL = ['/chat', '/manifest.webmanifest', '/static/icon-192.png', '/static/dubs.png'];
+const CACHE = 'dubly-v24';
+const SHELL = ['/chat', '/manifest.webmanifest', '/static/icon-192.png', '/static/icon-badge.png', '/static/dubs.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -44,7 +44,7 @@ self.addEventListener('push', e => {
     await self.registration.showNotification(data.title, {
       body: data.body,
       icon: '/static/icon-192.png',
-      badge: '/static/icon-192.png',
+      badge: '/static/icon-badge.png',
       data: { url: data.url || '/chat' },
       tag: 'study-msg',
       renotify: true,
