@@ -486,7 +486,7 @@ async function freshOpenChat(){
 }
 async function start(){
   try {
-    if (!sessionStorage.getItem('dubsSession')){ sessionStorage.setItem('dubsSession','1'); await freshOpenChat(); }
+    await freshOpenChat();   // every app open (launch) starts a fresh chat
     await loadHistory(); gate.classList.add('hidden');
   }
   catch(e){ return; }
@@ -497,6 +497,15 @@ async function start(){
 
 if ('serviceWorker' in navigator){ navigator.serviceWorker.register('/sw.js').catch(()=>{}); }
 setInterval(poll, 4000);
+// If the OS kept the app alive in the background, returning to it after a while
+// also counts as "reopening" -> start a fresh chat.
+let _hiddenAt = 0;
+document.addEventListener('visibilitychange', async ()=>{
+  if (document.visibilityState === 'hidden'){ _hiddenAt = Date.now(); return; }
+  if (KEY && _hiddenAt && (Date.now() - _hiddenAt > 120000)){   // away > 2 min
+    _hiddenAt = 0; try { await freshOpenChat(); log.innerHTML=''; lastId=0; await loadHistory(); } catch(e){}
+  }
+});
 if (KEY){ start(); } else { gate.classList.remove('hidden'); }
 </script>
 </body>
