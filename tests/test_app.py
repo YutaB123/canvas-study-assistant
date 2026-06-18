@@ -364,7 +364,7 @@ def test_opening_message_falls_back_without_canvas(tmp_path):
     client, brain, webchat = _web_chat_client(tmp_path, canvas=None)
     resp = client.get("/chat/messages?after=0", headers={"X-Chat-Key": "k"})
     greeting = resp.json()["messages"][0]["text"]
-    assert "dubs" in greeting.lower()
+    assert "dubly" in greeting.lower()
     assert "—" not in greeting
 
 

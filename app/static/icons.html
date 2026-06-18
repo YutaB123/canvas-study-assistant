@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pick an app icon</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{margin:0;background:#efe9fb;color:#3a2f55;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:18px 14px 60px;}
+  h1{font-size:20px;margin:4px 6px 2px;}
+  .hint{color:#8a7fa5;font-size:13px;margin:0 6px 18px;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:20px;}
+  .card{text-align:center;}
+  .icon{width:96px;height:96px;border-radius:22px;margin:0 auto 8px;overflow:hidden;display:flex;
+    align-items:center;justify-content:center;box-shadow:0 8px 20px rgba(120,95,180,.3);}
+  .icon svg,.icon img{width:100%;height:100%;display:block;object-fit:cover;}
+  .label{font-size:13px;font-weight:600;}
+  .label b{color:#8b6fd4;}
+  .label small{display:block;font-weight:400;color:#8a7fa5;font-size:11px;}
+</style>
+</head>
+<body>
+<h1>🐾 Pick an app icon</h1>
+<p class="hint">This is the icon on your home screen. Tell me the number and I'll generate it.</p>
+<div class="grid" id="grid"></div>
+<script>
+const PURPLE='#5b3f9e', PURPLE2='#7a5fc4', GOLD='#e8c86a';
+function paw(c){return `<svg viewBox="0 0 100 100"><g fill="${c}">
+  <ellipse cx="50" cy="63" rx="21" ry="16.5"/>
+  <ellipse cx="27" cy="44" rx="8" ry="10.5"/><ellipse cx="73" cy="44" rx="8" ry="10.5"/>
+  <ellipse cx="40" cy="29" rx="7" ry="9.5"/><ellipse cx="60" cy="29" rx="7" ry="9.5"/></g></svg>`;}
+function letter(ch,c){return `<svg viewBox="0 0 100 100"><text x="50" y="75" font-size="70" font-weight="800"
+  fill="${c}" text-anchor="middle" font-family="Georgia,'Times New Roman',serif">${ch}</text></svg>`;}
+const SIL=`<svg viewBox="0 0 100 100"><g fill="#fff">
+  <path d="M28 18 L21 48 L42 40 Z"/><path d="M72 18 L79 48 L58 40 Z"/>
+  <path d="M50 26 C33 26 27 46 27 60 C27 78 38 86 50 86 C62 86 73 78 73 60 C73 46 67 26 50 26 Z"/></g>
+  <ellipse cx="50" cy="70" rx="11" ry="8.5" fill="${PURPLE}"/><circle cx="50" cy="63" r="4" fill="#fff"/></svg>`;
+const FACE=`<svg viewBox="0 0 64 64">
+  <path d="M18 11 L13 30 L26 24 Z" fill="#3a3a44"/><path d="M46 11 L51 30 L38 24 Z" fill="#3a3a44"/>
+  <path d="M32 17 C20 17 16 29 16 38 C16 50 24 55 32 55 C40 55 48 50 48 38 C48 29 44 17 32 17 Z" fill="#f4f1f8"/>
+  <path d="M32 19 C24 19 19 27 18 37 C24 32 28 34 32 37 C36 34 40 32 46 37 C45 27 40 19 32 19 Z" fill="#5b5566"/>
+  <ellipse cx="25" cy="36" rx="3.4" ry="3.9" fill="#3aa0ff"/><ellipse cx="39" cy="36" rx="3.4" ry="3.9" fill="#3aa0ff"/>
+  <circle cx="25" cy="36" r="1.3" fill="#10243a"/><circle cx="39" cy="36" r="1.3" fill="#10243a"/>
+  <ellipse cx="32" cy="46" rx="8" ry="6.5" fill="#fff"/><ellipse cx="32" cy="43" rx="3" ry="2.3" fill="#1b1b1b"/>
+  <path d="M28 49 q4 6 8 0 z" fill="#ff7a9c"/></svg>`;
+
+const ICONS=[
+  {n:"Dubs Photo", s:"the real Dubs on purple", bg:PURPLE, fg:`<img src="/static/dubs.png">`},
+  {n:"White Paw", s:"clean & simple", bg:PURPLE, fg:paw('#ffffff')},
+  {n:"Gold Paw", s:"husky gold accent", bg:PURPLE, fg:paw(GOLD)},
+  {n:"Paw Gradient", s:"purple gradient", bg:`linear-gradient(145deg,${PURPLE2},${PURPLE})`, fg:paw('#ffffff')},
+  {n:"D Monogram", s:"bold initial", bg:PURPLE, fg:letter('D','#ffffff')},
+  {n:"Gold W", s:"UW dub-dub", bg:PURPLE, fg:letter('W',GOLD)},
+  {n:"Husky Head", s:"minimal silhouette", bg:`linear-gradient(145deg,${PURPLE2},${PURPLE})`, fg:SIL},
+  {n:"Dubs Face", s:"cute cartoon husky", bg:PURPLE, fg:FACE},
+];
+document.getElementById('grid').innerHTML = ICONS.map((d,i)=>`<div class="card">
+  <div class="icon" style="background:${d.bg}">${d.fg}</div>
+  <div class="label"><b>${i+1}</b> · ${d.n}<small>${d.s}</small></div>
+</div>`).join('');
+</script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 {
-  "name": "Dubs · Husky Study",
-  "short_name": "Dubs",
+  "name": "Dubly",
+  "short_name": "Dubly",
   "start_url": "/chat",
   "scope": "/",
   "display": "standalone",

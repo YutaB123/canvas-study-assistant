@@ -248,7 +248,7 @@ def _web_authed(deps: AppDeps, key: str) -> bool:
 _CLEAR_CMDS = {"clear", "clear chat", "clear all", "clear everything", "reset"}
 
 GREETING = (
-    "hey Dawg 🐾 i'm Dubs, your husky study buddy. ask me what's due, your grades, the syllabus, "
+    "hey Dawg 🐾 i'm Dubly, your husky study buddy. ask me what's due, your grades, the syllabus, "
     "anything canvas, or i can build you a study guide, quiz, or essay blueprint to get you started."
 )
 
@@ -277,7 +277,7 @@ def _greeting_text(deps: AppDeps) -> str:
         return GREETING
     lines = "\n".join(f"• {_course_label(c)}" for c in courses)
     return (
-        "hey Dawg 🐾 i'm Dubs. here are the classes i see you're enrolled in this quarter:\n"
+        "hey Dawg 🐾 i'm Dubly. here are the classes i see you're enrolled in this quarter:\n"
         f"{lines}\n\n"
         "ask me what's due, your grades, the syllabus, anything canvas, "
         "or i can build you a study guide, quiz, or essay blueprint to get you started."
