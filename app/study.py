@@ -79,47 +79,64 @@ _DECK_TEMPLATE = Template(
     <div class="hint" id="hint">{{ hint }}</div>
   </main>
   <footer>
-    <button class="nav" id="prev" aria-label="Previous">&#9664;</button>
-    <button class="ghost" id="shuffle">&#10227; shuffle</button>
+    <button class="ghost" id="miss" disabled style="background:linear-gradient(135deg,#ff8a8a,#e5484d);color:#fff;border:none;min-width:104px">&#128078; Missed</button>
     {% if page_id %}<button class="ghost" id="regen">&#128260; {{ regen_label }}</button>{% endif %}
-    <button class="nav" id="next" aria-label="Next">&#9654;</button>
+    <button class="ghost" id="got" disabled style="background:linear-gradient(135deg,#43cf75,#2fb85a);color:#fff;border:none;min-width:104px">&#128077; Got it</button>
   </footer>
 </div>
 <script type="application/json" id="deck">{{ cards_json }}</script>
 <script>
-let CARDS = JSON.parse(document.getElementById('deck').textContent);
-const flip = document.getElementById('flip');
-const scene = document.getElementById('scene');
-let i = 0;
+const CARDS = JSON.parse(document.getElementById('deck').textContent);
+const PAGE_ID = "{{ page_id }}";
+const flip = document.getElementById('flip'), scene = document.getElementById('scene');
+const got = document.getElementById('got'), miss = document.getElementById('miss');
+const hintEl = document.getElementById('hint');
+let order = CARDS.map((_,k)=>k), pos = 0, flipped = false;
+function setRate(on){ got.disabled = !on; miss.disabled = !on; got.style.opacity = miss.style.opacity = on?1:.4; }
 function render(){
-  const c = CARDS[i] || {q:'', a:''};
+  if (pos >= order.length) return done();
+  const c = CARDS[order[pos]] || {q:'', a:''};
   document.getElementById('q').textContent = c.q || '';
   document.getElementById('a').textContent = c.a || '';
-  flip.classList.remove('flipped');
-  document.getElementById('counter').textContent = CARDS.length ? (i+1)+' / '+CARDS.length : '0';
-  document.getElementById('bar').style.width = CARDS.length ? ((i+1)/CARDS.length*100)+'%' : '0';
-  document.getElementById('prev').disabled = i <= 0;
-  document.getElementById('next').disabled = i >= CARDS.length-1;
+  flip.classList.remove('flipped'); flipped = false; setRate(false);
+  document.getElementById('counter').textContent = (pos+1)+' / '+order.length;
+  document.getElementById('bar').style.width = (pos/order.length*100)+'%';
+  hintEl.textContent = 'tap the card, then rate yourself';
 }
-function go(d){ const n = i + d; if (n>=0 && n<CARDS.length){ i = n; render(); } }
-scene.addEventListener('click', ()=> flip.classList.toggle('flipped'));
-document.getElementById('next').addEventListener('click', e=>{ e.stopPropagation(); go(1); });
-document.getElementById('prev').addEventListener('click', e=>{ e.stopPropagation(); go(-1); });
-document.getElementById('shuffle').addEventListener('click', e=>{ e.stopPropagation();
-  for (let k=CARDS.length-1;k>0;k--){ const j=Math.floor(Math.random()*(k+1)); [CARDS[k],CARDS[j]]=[CARDS[j],CARDS[k]]; }
-  i = 0; render(); });
+function doFlip(){ flip.classList.toggle('flipped'); flipped = flip.classList.contains('flipped'); if (flipped) setRate(true); }
+scene.addEventListener('click', doFlip);
+async function rate(knew){
+  if (!flipped) return;
+  const card = order[pos];
+  if (PAGE_ID){ try { fetch('/study/'+PAGE_ID+'/progress', {method:'POST',
+    headers:{'Content-Type':'application/json'}, body: JSON.stringify({card, knew})}); } catch(_){} }
+  if (!knew) order.push(card);          // missed -> resurfaces again this session
+  pos++; render();
+}
+got.addEventListener('click', e=>{ e.stopPropagation(); rate(true); });
+miss.addEventListener('click', e=>{ e.stopPropagation(); rate(false); });
 document.addEventListener('keydown', e=>{
-  if (e.key==='ArrowRight') go(1);
-  else if (e.key==='ArrowLeft') go(-1);
-  else if (e.key===' ' || e.key==='Enter'){ e.preventDefault(); flip.classList.toggle('flipped'); }
+  if (e.key===' '||e.key==='Enter'){ e.preventDefault(); doFlip(); }
+  else if (flipped && e.key==='ArrowRight') rate(true);
+  else if (flipped && e.key==='ArrowLeft') rate(false);
 });
+function done(){
+  document.getElementById('counter').textContent='';
+  document.getElementById('q').textContent='🎉'; document.getElementById('a').textContent='🎉';
+  hintEl.textContent = 'deck complete - reviewed '+order.length+' cards. tap regenerate for a fresh set.';
+  setRate(false);
+}
 const regen = document.getElementById('regen');
 if (regen) regen.addEventListener('click', async ()=>{ const t=regen.textContent;
   regen.disabled=true; regen.textContent='generating…';
   try { const r=await fetch('/study/{{ page_id }}/regenerate',{method:'POST'});
     if(r.ok) location.reload(); else { regen.disabled=false; regen.textContent=t; } }
   catch(_){ regen.disabled=false; regen.textContent=t; } });
-render();
+(async function init(){
+  if (PAGE_ID){ try { const r=await fetch('/study/'+PAGE_ID+'/progress');
+    const boxes=(await r.json()).boxes||{}; order.sort((a,b)=>(boxes[a]||0)-(boxes[b]||0)); } catch(_){} }
+  render();
+})();
 </script>
 </body></html>""",
 )
@@ -218,8 +235,9 @@ _QUIZ_MC_TEMPLATE = Template(
 </div>
 <script type="application/json" id="quiz">{{ questions_json }}</script>
 <script>
-const Q = JSON.parse(document.getElementById('quiz').textContent);
-let i = 0, score = 0, answered = false;
+let Q = JSON.parse(document.getElementById('quiz').textContent);
+const ALL = Q.slice(), PAGE_ID = "{{ page_id }}";
+let i = 0, score = 0, answered = false, missedQ = [];
 const main = document.getElementById('main'), nextBtn = document.getElementById('next');
 const counter = document.getElementById('counter'), bar = document.getElementById('bar');
 function esc(s){ const d=document.createElement('div'); d.textContent = s==null?'':s; return d.innerHTML; }
@@ -242,21 +260,30 @@ function pick(idx, q){
   main.querySelectorAll('.choice').forEach((b,k)=>{ b.disabled = true;
     if (k === correct) b.classList.add('correct');
     else if (k === idx) b.classList.add('wrong'); });
-  if (idx === correct) score++;
+  if (idx === correct) score++; else missedQ.push(q);
   const ex = document.getElementById('explain');
   ex.textContent = (idx === correct ? '✓ correct. ' : '✗ not quite. ') + (q.explanation || '');
   ex.classList.add('show');
   bar.style.width = ((i+1)/Q.length*100)+'%';
   nextBtn.disabled = false;
 }
-function done(){
+async function done(){
   counter.textContent = '';
-  const pct = Q.length ? Math.round(score/Q.length*100) : 0;
-  main.innerHTML = '<div class="done"><div class="bigscore">'+score+' / '+Q.length+'</div>'
-    + '<div class="sub">you scored '+pct+'%</div>'
-    + '<button class="ghost" id="again">↺ try again</button></div>';
-  nextBtn.disabled = true;
-  document.getElementById('again').addEventListener('click', ()=>{ i=0; score=0; render(); });
+  const total = Q.length, miss = missedQ.slice();
+  if (PAGE_ID){ try { fetch('/study/'+PAGE_ID+'/attempt', {method:'POST',
+    headers:{'Content-Type':'application/json'}, body: JSON.stringify({score, total, missed: miss.length})}); } catch(_){} }
+  let best = '';
+  if (PAGE_ID){ try { const r = await fetch('/study/'+PAGE_ID+'/attempts'); const a = await r.json();
+    if (a.count > 1){ best = '<div class="sub">best so far: '+a.best+' · '+a.count+' attempts</div>'; } } catch(_){} }
+  const pct = total ? Math.round(score/total*100) : 0;
+  let html = '<div class="done"><div class="bigscore">'+score+' / '+total+'</div>'
+    + '<div class="sub">you scored '+pct+'%</div>' + best;
+  if (miss.length) html += '<button class="ghost" id="review">🎯 review '+miss.length+' missed</button>';
+  html += '<button class="ghost" id="again">↺ try again</button></div>';
+  main.innerHTML = html; nextBtn.disabled = true;
+  const rv = document.getElementById('review');
+  if (rv) rv.addEventListener('click', ()=>{ Q = miss; i=0; score=0; missedQ=[]; render(); });
+  document.getElementById('again').addEventListener('click', ()=>{ Q = ALL.slice(); i=0; score=0; missedQ=[]; render(); });
 }
 nextBtn.addEventListener('click', ()=>{ if (!answered && i < Q.length) return; i++; render(); });
 const regen = document.getElementById('regen');
@@ -288,8 +315,9 @@ _QUIZ_WRITTEN_TEMPLATE = Template(
 </div>
 <script type="application/json" id="quiz">{{ questions_json }}</script>
 <script>
-const Q = JSON.parse(document.getElementById('quiz').textContent);
-let i = 0, score = 0, revealed = false;
+let Q = JSON.parse(document.getElementById('quiz').textContent);
+const ALL = Q.slice(), PAGE_ID = "{{ page_id }}";
+let i = 0, score = 0, revealed = false, missedQ = [];
 const main = document.getElementById('main'), nextBtn = document.getElementById('next');
 const submitBtn = document.getElementById('submit');
 const counter = document.getElementById('counter'), bar = document.getElementById('bar');
@@ -315,17 +343,26 @@ function reveal(){
   document.getElementById('grade').classList.add('show');
   submitBtn.style.display = 'none';
   document.getElementById('got').addEventListener('click', ()=>{ score++; nextBtn.disabled=false; lockGrade(); });
-  document.getElementById('missed').addEventListener('click', ()=>{ nextBtn.disabled=false; lockGrade(); });
+  document.getElementById('missed').addEventListener('click', ()=>{ missedQ.push(Q[i]); nextBtn.disabled=false; lockGrade(); });
 }
 function lockGrade(){ document.querySelectorAll('#grade .btn').forEach(b=> b.disabled=true); }
-function done(){
+async function done(){
   counter.textContent = ''; submitBtn.style.display='none';
-  const pct = Q.length ? Math.round(score/Q.length*100) : 0;
-  main.innerHTML = '<div class="done"><div class="bigscore">'+score+' / '+Q.length+'</div>'
-    + '<div class="sub">you got '+pct+'% right</div>'
-    + '<button class="ghost" id="again">↺ try again</button></div>';
-  nextBtn.disabled = true;
-  document.getElementById('again').addEventListener('click', ()=>{ i=0; score=0; render(); });
+  const total = Q.length, miss = missedQ.slice();
+  if (PAGE_ID){ try { fetch('/study/'+PAGE_ID+'/attempt', {method:'POST',
+    headers:{'Content-Type':'application/json'}, body: JSON.stringify({score, total, missed: miss.length})}); } catch(_){} }
+  let best = '';
+  if (PAGE_ID){ try { const r = await fetch('/study/'+PAGE_ID+'/attempts'); const a = await r.json();
+    if (a.count > 1){ best = '<div class="sub">best so far: '+a.best+' · '+a.count+' attempts</div>'; } } catch(_){} }
+  const pct = total ? Math.round(score/total*100) : 0;
+  let html = '<div class="done"><div class="bigscore">'+score+' / '+total+'</div>'
+    + '<div class="sub">you got '+pct+'% right</div>' + best;
+  if (miss.length) html += '<button class="ghost" id="review">🎯 review '+miss.length+' missed</button>';
+  html += '<button class="ghost" id="again">↺ try again</button></div>';
+  main.innerHTML = html; nextBtn.disabled = true;
+  const rv = document.getElementById('review');
+  if (rv) rv.addEventListener('click', ()=>{ Q = miss; i=0; score=0; missedQ=[]; render(); });
+  document.getElementById('again').addEventListener('click', ()=>{ Q = ALL.slice(); i=0; score=0; missedQ=[]; render(); });
 }
 submitBtn.addEventListener('click', reveal);
 nextBtn.addEventListener('click', ()=>{ if (!revealed && i < Q.length) return; i++; render(); });

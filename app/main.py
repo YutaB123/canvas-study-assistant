@@ -68,6 +68,7 @@ class AppDeps:
     canvas: Any = None        # CanvasClient — lets the opening message list real classes
     study_service: Any = None # StudyService — regenerates a quiz/deck on demand
     chats: Any = None         # ChatStore — multiple conversations (web app)
+    study_progress: Any = None # StudyProgressStore — flashcard SR + quiz attempts
 
 
 def _filename_for(content_type: str, index: int = 0) -> str:
@@ -376,6 +377,37 @@ def build_app(deps: AppDeps) -> FastAPI:
             return JSONResponse({"error": "not found"}, status_code=404)
         return {"ok": True}
 
+    # ---- study progress: flashcard spaced repetition + quiz attempts --------
+
+    @app.get("/study/{page_id}/progress")
+    def get_study_progress(page_id: str):
+        if deps.study_progress is None:
+            return {"boxes": {}}
+        return {"boxes": deps.study_progress.get_boxes(page_id)}
+
+    @app.post("/study/{page_id}/progress")
+    def post_study_progress(page_id: str, payload: dict = Body(...)):
+        if deps.study_progress is None:
+            return {"ok": False}
+        box = deps.study_progress.rate_card(page_id, int(payload.get("card", 0)), bool(payload.get("knew")))
+        return {"ok": True, "box": box}
+
+    @app.get("/study/{page_id}/attempts")
+    def get_study_attempts(page_id: str):
+        if deps.study_progress is None:
+            return {"count": 0, "best": 0, "list": []}
+        return deps.study_progress.attempts(page_id)
+
+    @app.post("/study/{page_id}/attempt")
+    def post_study_attempt(page_id: str, payload: dict = Body(...)):
+        if deps.study_progress is None:
+            return {"ok": False}
+        deps.study_progress.add_attempt(
+            page_id, int(payload.get("score", 0)), int(payload.get("total", 0)),
+            int(payload.get("missed", 0)),
+        )
+        return {"ok": True}
+
     @app.get("/file/{file_id}")
     def serve_file(file_id: str):
         rec = deps.files.get(file_id) if deps.files is not None else None
@@ -598,6 +630,7 @@ def create_app() -> FastAPI:
         ChatStore,
         PushStore,
         AlertStore,
+        StudyProgressStore,
     )
     from app.alerts import AlertService
     from app.reminders import ReminderService
@@ -707,5 +740,6 @@ def create_app() -> FastAPI:
         canvas=canvas,
         study_service=study,
         chats=chat_store,
+        study_progress=StudyProgressStore(settings.data_dir / "study_progress.sqlite"),
     )
     return build_app(deps)

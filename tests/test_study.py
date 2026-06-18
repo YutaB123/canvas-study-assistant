@@ -66,8 +66,8 @@ def test_render_flashcards_includes_questions_and_answers():
     assert "What is a p-value?" in html
     assert "The probability of data this extreme under H0." in html
     assert "<html" in html.lower()
-    # It's an interactive flip-deck, not a flat list.
-    assert "flip" in html and "shuffle" in html
+    # It's an interactive flip-deck with spaced-repetition rating, not a flat list.
+    assert "flip" in html and "Got it" in html
 
 
 def test_render_exam_includes_questions_and_an_answer_key():

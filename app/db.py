@@ -259,6 +259,68 @@ class ChatStore:
         return [{"role": r, "content": t} for r, t in reversed(rows)]
 
 
+class StudyProgressStore:
+    """Per-page study state: flashcard boxes (Leitner spaced repetition) + quiz attempts."""
+
+    def __init__(self, path: str | Path):
+        self.path = str(path)
+        self._db = sqlite3.connect(self.path, check_same_thread=False)
+        self._db.execute(
+            "CREATE TABLE IF NOT EXISTS card_box ("
+            " page_id TEXT, card INTEGER, box INTEGER NOT NULL DEFAULT 0,"
+            " PRIMARY KEY (page_id, card))"
+        )
+        self._db.execute(
+            "CREATE TABLE IF NOT EXISTS quiz_attempt ("
+            " id INTEGER PRIMARY KEY AUTOINCREMENT, page_id TEXT NOT NULL,"
+            " score INTEGER, total INTEGER, missed INTEGER)"
+        )
+        self._db.commit()
+
+    # --- flashcards (spaced repetition) --------------------------------------
+
+    def get_boxes(self, page_id: str) -> dict:
+        rows = self._db.execute(
+            "SELECT card, box FROM card_box WHERE page_id = ?", (page_id,)
+        ).fetchall()
+        return {int(c): int(b) for c, b in rows}
+
+    def rate_card(self, page_id: str, card: int, knew: bool) -> int:
+        """Known -> box +1 (capped at 5, longer interval). Missed -> back to box 0."""
+        row = self._db.execute(
+            "SELECT box FROM card_box WHERE page_id = ? AND card = ?", (page_id, card)
+        ).fetchone()
+        box = row[0] if row else 0
+        box = min(box + 1, 5) if knew else 0
+        self._db.execute(
+            "INSERT OR REPLACE INTO card_box (page_id, card, box) VALUES (?, ?, ?)",
+            (page_id, card, box),
+        )
+        self._db.commit()
+        return box
+
+    # --- quiz attempts -------------------------------------------------------
+
+    def add_attempt(self, page_id: str, score: int, total: int, missed: int) -> None:
+        self._db.execute(
+            "INSERT INTO quiz_attempt (page_id, score, total, missed) VALUES (?, ?, ?, ?)",
+            (page_id, score, total, missed),
+        )
+        self._db.commit()
+
+    def attempts(self, page_id: str) -> dict:
+        rows = self._db.execute(
+            "SELECT score, total, missed FROM quiz_attempt WHERE page_id = ? ORDER BY id",
+            (page_id,),
+        ).fetchall()
+        best = max((s for s, _, _ in rows), default=0)
+        return {
+            "count": len(rows),
+            "best": best,
+            "list": [{"score": s, "total": t, "missed": m} for s, t, m in rows],
+        }
+
+
 class AlertStore:
     """Remembers what we've already alerted on, so proactive pushes don't repeat."""
 
