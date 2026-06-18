@@ -51,13 +51,22 @@ def _is_pdf(filename: str, content_type: str) -> bool:
     return _ext(filename) == "pdf" or "pdf" in (content_type or "").lower()
 
 
+# Text/code/data file extensions we always read as plain text.
+_TEXT_EXTS = {
+    "txt", "text", "md", "markdown", "csv", "tsv", "json", "xml", "yaml", "yml",
+    "ini", "cfg", "conf", "toml", "log", "tex", "srt", "vtt", "rtf", "py", "js",
+    "mjs", "ts", "tsx", "jsx", "java", "kt", "c", "h", "cpp", "cc", "hpp", "cs",
+    "rb", "go", "rs", "php", "swift", "sql", "sh", "bash", "zsh", "ps1", "bat",
+    "r", "pl", "lua", "dart", "scala", "clj", "ex", "vue", "svelte", "env",
+}
+
+
 def extract_text(filename: str, content_type: str, data: bytes) -> str:
-    """Pull readable text out of a document (txt / docx / pdf / html). Empty if none."""
-    name = (filename or "").lower()
+    """Pull readable text out of a file. Handles docx / pdf / html specially, and
+    reads any text/code/data file (or anything that's valid UTF-8). Empty if binary."""
     ct = (content_type or "").lower()
-    if name.endswith(".txt") or "text/plain" in ct:
-        return data.decode("utf-8", "replace")
-    if name.endswith(".docx"):
+    ext = _ext(filename)
+    if ext == "docx":
         try:
             z = zipfile.ZipFile(io.BytesIO(data))
             xml = z.read("word/document.xml").decode("utf-8", "replace")
@@ -66,7 +75,7 @@ def extract_text(filename: str, content_type: str, data: bytes) -> str:
             return html_module.unescape("".join(parts))
         except Exception:
             return ""
-    if name.endswith(".pdf") or "pdf" in ct:
+    if ext == "pdf" or "pdf" in ct:
         try:
             from pypdf import PdfReader
 
@@ -74,9 +83,16 @@ def extract_text(filename: str, content_type: str, data: bytes) -> str:
             return "\n".join((p.extract_text() or "") for p in reader.pages)
         except Exception:
             return ""
-    if name.endswith((".html", ".htm")) or "html" in ct:
+    if ext in ("html", "htm") or "html" in ct:
         return html_to_text(data.decode("utf-8", "replace"))
-    return ""
+    # Plain text, code, config, data — by content-type or extension.
+    if ct.startswith("text/") or ext in _TEXT_EXTS:
+        return data.decode("utf-8", "replace")
+    # Last resort: include anything that cleanly decodes as UTF-8 text; binary -> "".
+    try:
+        return data.decode("utf-8")
+    except (UnicodeDecodeError, AttributeError):
+        return ""
 
 
 def to_content_blocks(files):

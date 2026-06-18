@@ -46,11 +46,32 @@ def test_txt_is_extracted_as_text_not_a_block():
 
 def test_unreadable_binary_is_marked_unsupported():
     blocks, extracted, unsupported = attachments.to_content_blocks(
-        [("archive.zip", "application/zip", b"PK\x03\x04")]
+        [("archive.zip", "application/zip", b"PK\x03\x04\xff\xfe")]
     )
     assert blocks == []
     assert extracted == []
     assert unsupported == ["archive.zip"]
+
+
+def test_csv_md_and_code_files_are_read_as_text():
+    blocks, extracted, unsupported = attachments.to_content_blocks([
+        ("grades.csv", "text/csv", b"name,grade\nDubs,A"),
+        ("notes.md", "", b"# Heading\nsome notes"),
+        ("script.py", "", b"print('hello')"),
+        ("data.json", "application/json", b'{"k": 1}'),
+    ])
+    assert blocks == []
+    assert [n for n, _ in extracted] == ["grades.csv", "notes.md", "script.py", "data.json"]
+    assert any("Dubs,A" in t for _, t in extracted)
+    assert unsupported == []
+
+
+def test_any_utf8_file_with_unknown_type_is_still_read():
+    blocks, extracted, unsupported = attachments.to_content_blocks(
+        [("mystery", "application/octet-stream", "café notes ☕".encode("utf-8"))]
+    )
+    assert extracted and "café notes" in extracted[0][1]
+    assert unsupported == []
 
 
 def test_build_user_content_with_no_files_returns_plain_string():
