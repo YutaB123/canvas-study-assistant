@@ -213,6 +213,10 @@ let KEY = localStorage.getItem('chatKey') || '';
 let lastId = 0, busy = false, deferredInstall = null, vapidKey = '';
 let pendingFiles = [], currentGen = null, controller = null;
 let currentChat = parseInt(localStorage.getItem('chatId') || '') || null;
+let isDemo = false;
+let notifyOff = localStorage.getItem('notifyOff') === '1';   // on by default
+// If opened from a notification (/chat?c=ID), go straight to that chat.
+const _targetChat = parseInt(new URLSearchParams(location.search).get('c') || '') || null;
 
 const CLEAR_RE = /^(clear|clear chat|clear all|clear everything|reset)$/i;
 function esc(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
@@ -467,11 +471,12 @@ document.getElementById('mInstall').addEventListener('click', async ()=>{ closeM
 function urlB64ToUint8(b64){ const pad='='.repeat((4-b64.length%4)%4);
   const s=(b64+pad).replace(/-/g,'+').replace(/_/g,'/'); const raw=atob(s);
   return Uint8Array.from([...raw].map(c=>c.charCodeAt(0))); }
-async function loadConfig(){ try { const r=await api('/chat/config'); vapidKey=(await r.json()).vapidPublicKey||''; } catch(e){} }
+async function loadConfig(){ try { const r=await api('/chat/config'); const j=await r.json(); vapidKey=j.vapidPublicKey||''; isDemo=!!j.demo; } catch(e){} }
 function refreshNotifyLabel(){
   const span=document.querySelector('#mNotify span');
   if (!('Notification' in window) || !vapidKey){ document.getElementById('mNotify').classList.add('hidden'); return; }
-  span.textContent = (Notification.permission === 'granted') ? 'Notifications on ✓' : 'Enable notifications';
+  const on = (Notification.permission === 'granted') && !notifyOff;
+  span.textContent = on ? 'Turn off notifications' : 'Turn on notifications';
 }
 function sameKey(a, b){ if (!a || a.length !== b.length) return false;
   for (let i=0;i<a.length;i++){ if (a[i] !== b[i]) return false; } return true; }
@@ -491,12 +496,27 @@ async function subscribePush(){
     body: JSON.stringify(sub) });
   return true;
 }
+async function enableNotify(){   // request permission if needed, then subscribe
+  if (!('Notification' in window)) return false;
+  let perm = Notification.permission;
+  if (perm === 'default'){ try { perm = await Notification.requestPermission(); } catch(e){ return false; } }
+  if (perm !== 'granted') return false;
+  notifyOff = false; localStorage.removeItem('notifyOff');
+  try { return await subscribePush(); } catch(e){ return false; }
+}
+async function disableNotify(){   // stop notifications on this device
+  notifyOff = true; localStorage.setItem('notifyOff', '1');
+  try { const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) await sub.unsubscribe(); } catch(e){}
+}
 document.getElementById('mNotify').addEventListener('click', async ()=>{ closeMenu();
   if (!('Notification' in window)){ toast('Notifications not supported here'); return; }
-  const perm = await Notification.requestPermission();
-  if (perm !== 'granted'){ toast('Notifications blocked — enable in browser settings'); return; }
-  try { await subscribePush(); toast('Notifications on ✓'); refreshNotifyLabel(); }
-  catch(e){ toast('Couldn’t enable notifications'); }
+  const on = (Notification.permission === 'granted') && !notifyOff;
+  if (on){ await disableNotify(); toast('Notifications off'); refreshNotifyLabel(); return; }
+  const ok = await enableNotify();
+  toast(ok ? 'Notifications on ✓' : 'Notifications blocked — enable in browser settings');
+  refreshNotifyLabel();
 });
 
 // ---- voice input (Web Speech API) ----
@@ -547,13 +567,27 @@ async function freshOpenChat(){
 }
 async function start(){
   try {
-    await freshOpenChat();   // every app open (launch) starts a fresh chat
+    if (_targetChat){
+      // Opened from a notification: go to that exact chat, not a fresh one.
+      currentChat = _targetChat; localStorage.setItem('chatId', _targetChat);
+      try { history.replaceState(null, '', '/chat'); } catch(e){}
+    } else {
+      await freshOpenChat();   // a normal app open (launch) starts a fresh chat
+    }
     await loadHistory(); gate.classList.add('hidden');
   }
   catch(e){ return; }
   await loadConfig(); refreshNotifyLabel();
-  // If permission was already granted, keep the subscription fresh silently.
-  if (('Notification' in window) && Notification.permission === 'granted'){ try { await subscribePush(); } catch(e){} }
+  // Notifications are ON by default: auto-enable on start unless the user turned
+  // them off, or we're the public demo (don't prompt random visitors).
+  if (notifyOff || isDemo){
+    if (('Notification' in window) && Notification.permission === 'granted' && !notifyOff){
+      try { await subscribePush(); } catch(e){}   // keep an existing sub fresh
+    }
+  } else {
+    try { await enableNotify(); } catch(e){}
+  }
+  refreshNotifyLabel();
 }
 
 if ('serviceWorker' in navigator){ navigator.serviceWorker.register('/sw.js').catch(()=>{}); }

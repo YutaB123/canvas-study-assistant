@@ -51,7 +51,9 @@ class WebClient:
             preview = (text or "sent you a file").strip()
             if len(preview) > 120:
                 preview = preview[:117] + "…"
-            self.push.notify("Study Assistant", preview)
+            # Deep-link the notification to THIS chat so tapping it opens the
+            # right conversation, not a fresh one.
+            self.push.notify("Dubly", preview, url=f"/chat?c={chat_id}")
 
     def send_typing(self, message_sid: str) -> bool:
         # The web UI shows its own typing dots while it waits for the reply.

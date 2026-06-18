@@ -38,10 +38,14 @@ item on its OWN line as a bullet, nothing else. For grades use exactly this shap
 • CSE 163: 96%
 • STAT 311: 93%
 • PHIL 149: 88%
-For what's due, list EVERY upcoming item, soonest first, one per line, as:
-• CSE 163 - Homework 5 (due tue)
-• STAT 311 - Quiz 4 (due thu)
-No intro line, no closing line, no extra words — just the bulleted lines.
+For what's due, GROUP the items by when they're due: a short time header line (how far \
+off the soonest is), then the items due then bulleted under it, soonest group first, like:
+due in 19 hrs:
+• CSE 163 - Homework 5
+due in 3 days:
+• STAT 311 - Quiz 4
+• MATH 126 - WebAssign 6
+No intro line, no closing line, no extra words — just the header lines and their bullets.
 - A CLASS is a course whose code has a department and a 3-digit number: PHIL 149, MATH 124, \
 CSE 163. Anything without a 3-digit number (resource sites, career guides, placement pages, \
 "Informatics Resource", etc.) is NOT a class — never list it, count it, or include it in grades \

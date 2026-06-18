@@ -466,7 +466,10 @@ def build_app(deps: AppDeps) -> FastAPI:
         if not _web_authed(deps, x_chat_key):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
         push_on = deps.push is not None and getattr(deps.push, "enabled", False)
-        return {"vapidPublicKey": deps.vapid_public_key if push_on else ""}
+        return {
+            "vapidPublicKey": deps.vapid_public_key if push_on else "",
+            "demo": deps.demo_mode,
+        }
 
     @app.post("/chat/subscribe")
     def chat_subscribe(sub: dict = Body(...), x_chat_key: str = Header(default="")):
