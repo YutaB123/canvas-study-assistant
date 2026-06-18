@@ -26,7 +26,7 @@
   header .avatar { width:34px; height:34px; border-radius:50%; flex:0 0 auto; font-size:18px;
     background:linear-gradient(135deg,var(--accent1),var(--accent2)); display:flex; align-items:center;
     justify-content:center; box-shadow:0 3px 12px rgba(139,111,212,.4); }
-  header .title { flex:1; text-align:center; font-weight:600; font-size:17px; }
+  header .title { flex:1; text-align:left; font-weight:600; font-size:17px; }
   header .title small { display:block; font-weight:400; font-size:12px; color:rgba(255,255,255,.82); margin-top:2px; }
   .onlinedot { display:inline-block; width:7px; height:7px; border-radius:50%; background:#2fbf71;
     margin-right:5px; vertical-align:middle; animation:pulse 2.2s infinite; }
@@ -44,7 +44,11 @@
   #menu .sep { height:1px; background:#ddd2f0; }
   #log { flex:1; overflow-y:auto; padding:14px 12px 6px; display:flex; flex-direction:column; gap:8px;
     -webkit-overflow-scrolling:touch; }
-  .row { display:flex; } .row.me { justify-content:flex-end; } .row.them { justify-content:flex-start; }
+  .row { display:flex; } .row.me { justify-content:flex-end; }
+  .row.them { justify-content:flex-start; align-items:flex-end; gap:6px; }
+  .msg-av { width:26px; height:26px; border-radius:50%; flex:0 0 auto; align-self:flex-end;
+    background:#fff url('/static/dubs.png') center/cover; box-shadow:0 1px 3px rgba(90,70,130,.22); }
+  .avatar.dubs-pic, .gate-badge.dubs-pic { background:#fff url('/static/dubs.png') center/cover; }
   .bubble { max-width:78%; padding:9px 13px; border-radius:19px; font-size:16px; line-height:1.35;
     white-space:pre-wrap; word-wrap:break-word; animation:pop .28s cubic-bezier(.2,.8,.3,1.05); }
   @keyframes pop { from{ opacity:0; transform:translateY(8px) scale(.96); } to{ opacity:1; transform:none; } }
@@ -135,6 +139,7 @@
 <div id="app">
   <header>
     <button class="iconbtn" id="drawerBtn" aria-label="Chats">☰</button>
+    <div class="avatar dubs-pic"></div>
     <div class="title">Dubs<small><span class="onlinedot"></span>your husky study buddy · Go Dawgs</small></div>
     <button class="iconbtn" id="menuBtn" aria-label="Menu">⋯</button>
   </header>
@@ -174,7 +179,7 @@
 </div>
 
 <div id="gate">
-  <div class="gate-badge">🐾</div>
+  <div class="gate-badge dubs-pic"></div>
   <h1>Dubs</h1>
   <p>your husky study buddy · enter your passcode to let Dubs out 🐾</p>
   <input id="pass" type="password" inputmode="text" placeholder="passcode" autocomplete="off" />
@@ -241,14 +246,15 @@ function addBubble(role, text, media){
       + `<span class="ds">tap to study →</span></button>`;
   }
   if (media) inner += `<a class="doc" href="${esc(media)}" target="_blank" rel="noopener" download>📄 Download</a>`;
-  row.innerHTML = `<div class="bubble">${inner}</div>`;
+  const av = (role === 'user') ? '' : '<div class="msg-av"></div>';  // Dubs' face on his replies
+  row.innerHTML = `${av}<div class="bubble">${inner}</div>`;
   log.appendChild(row);
   if (stick || role === 'user') toBottom();
 }
 let typingEl = null;
 function showTyping(){ if (typingEl) return;
   typingEl = document.createElement('div'); typingEl.className = 'row them';
-  typingEl.innerHTML = '<div class="bubble"><span class="dots"><i></i><i></i><i></i></span></div>';
+  typingEl.innerHTML = '<div class="msg-av"></div><div class="bubble"><span class="dots"><i></i><i></i><i></i></span></div>';
   log.appendChild(typingEl); toBottom(); }
 function hideTyping(){ if (typingEl){ typingEl.remove(); typingEl = null; } }
 
@@ -467,8 +473,22 @@ document.getElementById('unlock').addEventListener('click', ()=>{
   KEY = v; localStorage.setItem('chatKey', v); start(); });
 document.getElementById('pass').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('unlock').click(); });
 
+// A fresh app-open (closed then reopened) starts a new chat. A plain reload
+// stays put (sessionStorage survives reloads but is cleared when the app closes).
+async function freshOpenChat(){
+  try {
+    const r = await api('/chats'); const chats = (await r.json()).chats || [];
+    // Reuse an untouched "New chat" if one's already on top, else make a new one.
+    if (chats.length && chats[0].title === 'New chat'){ currentChat = chats[0].id; }
+    else { const nr = await api('/chats', { method:'POST' }); currentChat = (await nr.json()).id; }
+    localStorage.setItem('chatId', currentChat);
+  } catch(e){}
+}
 async function start(){
-  try { await loadHistory(); gate.classList.add('hidden'); }
+  try {
+    if (!sessionStorage.getItem('dubsSession')){ sessionStorage.setItem('dubsSession','1'); await freshOpenChat(); }
+    await loadHistory(); gate.classList.add('hidden');
+  }
   catch(e){ return; }
   await loadConfig(); refreshNotifyLabel();
   // If permission was already granted, keep the subscription fresh silently.

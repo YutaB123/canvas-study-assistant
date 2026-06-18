@@ -1,7 +1,7 @@
 // Service worker: caches the app shell, and shows push notifications so the
 // assistant can reach you even when the app is closed.
-const CACHE = 'dubs-v14';
-const SHELL = ['/chat', '/manifest.webmanifest', '/static/icon-192.png'];
+const CACHE = 'dubs-v15';
+const SHELL = ['/chat', '/manifest.webmanifest', '/static/icon-192.png', '/static/dubs.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
