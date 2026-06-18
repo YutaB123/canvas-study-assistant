@@ -369,6 +369,30 @@ def test_syllabus_url_unknown_course_is_empty():
     assert client.syllabus_url("art history") == ""
 
 
+def test_get_grade_breakdown_returns_groups_weights_and_scores():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/v1/courses":
+            return httpx.Response(200, json=[
+                {"id": 5, "name": "Stats", "course_code": "STAT 311 A"},
+            ])
+        assert request.url.path == "/api/v1/courses/5/assignment_groups"
+        return httpx.Response(200, json=[
+            {"name": "Homework", "group_weight": 40, "assignments": [
+                {"name": "HW1", "points_possible": 20, "submission": {"score": 18}},
+                {"name": "HW2", "points_possible": 20, "submission": {"score": None}},
+            ]},
+            {"name": "Final", "group_weight": 60, "assignments": [
+                {"name": "Final Exam", "points_possible": 100, "submission": {"score": None}},
+            ]},
+        ])
+
+    groups = make_client(handler).get_grade_breakdown("STAT 311")
+    assert [g.name for g in groups] == ["Homework", "Final"]
+    assert [g.weight for g in groups] == [40, 60]
+    assert groups[0].items == [("HW1", 18, 20), ("HW2", None, 20)]
+    assert groups[1].items == [("Final Exam", None, 100)]
+
+
 def test_get_calendar_events_parses_and_sorts():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/api/v1/courses":

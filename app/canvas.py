@@ -124,6 +124,15 @@ class AssignmentScore:
 
 
 @dataclass(frozen=True)
+class GradeGroup:
+    """A weighted assignment group (e.g. 'Homework — 40%') and its scored items."""
+
+    name: str
+    weight: float | None       # group_weight: % of the final grade
+    items: list                # list of (assignment_name, score, points_possible)
+
+
+@dataclass(frozen=True)
 class Submission:
     """What the student turned in for an assignment, plus feedback."""
 
@@ -496,6 +505,27 @@ class CanvasClient:
                 )
             )
         return out
+
+    def get_grade_breakdown(self, course: str) -> list[GradeGroup]:
+        """Assignment groups with their weights + the student's score on each item.
+        The source for 'what do I need on X to get a Y' grade math."""
+        cid = self._resolve_course_id(course)
+        if cid is None:
+            return []
+        raw = self._get(
+            f"/courses/{cid}/assignment_groups",
+            {"include[]": ["assignments", "submission"], "per_page": 50},
+        )
+        groups: list[GradeGroup] = []
+        for g in raw:
+            items = []
+            for a in g.get("assignments") or []:
+                sub = a.get("submission") or {}
+                items.append((a.get("name") or "(untitled)", sub.get("score"), a.get("points_possible")))
+            groups.append(
+                GradeGroup(name=g.get("name") or "(group)", weight=g.get("group_weight"), items=items)
+            )
+        return groups
 
     def get_upcoming(self, days: int = 7) -> list[Item]:
         return self._cached(("upcoming", days), lambda: self._fetch_upcoming(days))

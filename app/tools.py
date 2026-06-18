@@ -199,6 +199,21 @@ CANVAS_TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "get_grade_breakdown",
+        "description": "Get a course's grade breakdown: each assignment GROUP, its WEIGHT "
+        "(% of the final grade), and the student's score on every assignment (including "
+        "what's still ungraded). Use this for 'what do I need on the final to get a 3.5 / "
+        "90%', 'how is my grade weighted', or any target-grade math. Pass the course name "
+        "or code.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "course": {"type": "string", "description": "Course name, code, or nickname."},
+            },
+            "required": ["course"],
+        },
+    },
+    {
         "name": "get_calendar",
         "description": "Read scheduled course calendar events (exams, review sessions, "
         "special meetings) in the next couple of weeks. Finals and exams are often on "
@@ -258,6 +273,7 @@ class ToolBox:
             "get_syllabus": self._get_syllabus,
             "get_grades": self._get_grades,
             "get_course_grades": self._get_course_grades,
+            "get_grade_breakdown": self._get_grade_breakdown,
             "get_submission": self._get_submission,
         }.get(name)
 
@@ -390,6 +406,20 @@ class ToolBox:
                 lines.append(f"{it.name}: {it.score:g}/{pts} (done)")
             else:
                 lines.append(f"{it.name}: {it.score:g}/{pts} (partial)")
+        return "\n".join(lines)
+
+    def _get_grade_breakdown(self, tool_input: dict) -> str:
+        groups = self.canvas.get_grade_breakdown(tool_input.get("course", ""))
+        if not groups:
+            return "No grade breakdown found for that course."
+        lines = []
+        for g in groups:
+            weight = f" ({g.weight:g}% of grade)" if g.weight else ""
+            lines.append(f"{g.name}{weight}:")
+            for name, score, pts in g.items:
+                s = f"{score:g}" if score is not None else "ungraded"
+                p = f"{pts:g}" if pts is not None else "?"
+                lines.append(f"  - {name}: {s}/{p}")
         return "\n".join(lines)
 
     def _get_syllabus(self, tool_input: dict) -> str:

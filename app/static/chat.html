@@ -85,7 +85,8 @@
     box-shadow:0 3px 12px rgba(139,111,212,.4); transition:transform .1s; }
   button#send:active { transform:scale(.9); } button#send:disabled { opacity:.4; box-shadow:none; }
   button#send.stop { background:linear-gradient(135deg,#ff5d5d,#ff2d55); box-shadow:0 3px 12px rgba(255,45,85,.4); }
-  #attach { font-size:21px; }
+  #attach, #mic { font-size:21px; }
+  #mic.listening { color:#e5484d; animation:pulse 1.4s infinite; }
   #previews { display:flex; gap:8px; padding:6px 12px; overflow-x:auto; background:var(--bar);
     -webkit-overflow-scrolling:touch; scrollbar-width:none; }
   #previews::-webkit-scrollbar { display:none; }
@@ -155,11 +156,13 @@
     <button data-msg="what's due this week?">📅 What's due?</button>
     <button data-msg="how are my grades looking?">📊 My grades</button>
     <button data-msg="help me build an essay blueprint to get started">📝 Essay blueprint</button>
-    <button data-msg="what's on my syllabus?">📖 Syllabus</button>
+    <button data-msg="make me a study plan for this week based on what's actually due">🗓️ Study plan</button>
+    <button data-msg="what do I need on my finals to keep my grades up?">🎯 What do I need?</button>
   </div>
   <div id="previews" class="hidden"></div>
   <footer>
     <button class="iconbtn" id="attach" aria-label="Attach a picture or document">📎</button>
+    <button class="iconbtn" id="mic" aria-label="Voice input">🎤</button>
     <input type="file" id="file" multiple hidden />
     <textarea id="text" rows="1" placeholder="Message" autocomplete="off"></textarea>
     <button id="send" aria-label="Send">↑</button>
@@ -462,6 +465,31 @@ document.getElementById('mNotify').addEventListener('click', async ()=>{ closeMe
   try { await subscribePush(); toast('Notifications on ✓'); refreshNotifyLabel(); }
   catch(e){ toast('Couldn’t enable notifications'); }
 });
+
+// ---- voice input (Web Speech API) ----
+(function(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const micBtn = document.getElementById('mic');
+  if (!SR){ micBtn.classList.add('hidden'); return; }   // not supported (e.g. some iOS)
+  const recog = new SR();
+  recog.lang = navigator.language || 'en-US';
+  recog.interimResults = true; recog.continuous = false;
+  let listening = false, base = '';
+  recog.onstart = ()=>{ listening = true; micBtn.classList.add('listening'); };
+  recog.onend   = ()=>{ listening = false; micBtn.classList.remove('listening'); };
+  recog.onerror = ()=>{ listening = false; micBtn.classList.remove('listening'); };
+  recog.onresult = (e)=>{
+    let txt = '';
+    for (let i=e.resultIndex; i<e.results.length; i++){ txt += e.results[i][0].transcript; }
+    ta.value = (base + txt).trim();
+    ta.style.height='auto'; ta.style.height=Math.min(ta.scrollHeight,120)+'px';
+  };
+  micBtn.addEventListener('click', ()=>{
+    if (listening){ recog.stop(); return; }
+    base = ta.value ? ta.value + ' ' : '';
+    try { recog.start(); } catch(e){}
+  });
+})();
 
 // ---- input wiring ----
 ta.addEventListener('input', ()=>{ ta.style.height='auto'; ta.style.height=Math.min(ta.scrollHeight,120)+'px'; });

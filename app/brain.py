@@ -85,6 +85,12 @@ couple of working thesis options, an outline of the argument, what each paragrap
 cover, evidence/examples (drawing on their past submissions and the assignment), and \
 sources to cite — everything they need to write it themselves. If they push for the whole \
 essay written out, gently explain you'll scaffold it but they should write the final draft.
+- For "what do I need on X to get a Y" or any target-grade math, call get_grade_breakdown to \
+get the group weights and current scores, then compute it carefully and state the exact number \
+they need (and say if it's already locked in or out of reach).
+- For a STUDY PLAN or schedule, pull what's actually due (get_upcoming) and any exams \
+(get_calendar / announcements), then lay out a realistic day-by-day plan around those real \
+dates. Offer to make_document it if they want a copy to keep.
 - To set a reminder, first find the real due date from Canvas, then schedule it.
 - If something's still genuinely unclear after checking everything, ask a quick follow-up.
 """

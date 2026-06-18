@@ -92,6 +92,13 @@ class FakeCanvas:
     def get_syllabus(self, course):
         return f"Syllabus for {course}: the final is closed book, one notes page allowed."
 
+    def get_grade_breakdown(self, course):
+        from app.canvas import GradeGroup
+        return [
+            GradeGroup(name="Homework", weight=40, items=[("HW1", 18.0, 20.0), ("HW2", None, 20.0)]),
+            GradeGroup(name="Final", weight=60, items=[("Final Exam", None, 100.0)]),
+        ]
+
     def get_grades(self):
         from app.canvas import Grade
 
@@ -173,6 +180,14 @@ def test_dispatch_get_course_grades_marks_not_done():
     assert "Curriculum Standard 2A: —/1 (NOT DONE)" in out
     assert "Curriculum Standard 1A: 1/1 (done)" in out
     assert "(partial)" in out  # HW 41/43
+
+
+def test_dispatch_get_grade_breakdown_shows_weights_and_scores():
+    out = make_box().dispatch("get_grade_breakdown", {"course": "STAT 311"})
+    assert "Homework (40% of grade)" in out
+    assert "Final (60% of grade)" in out
+    assert "HW1: 18/20" in out
+    assert "Final Exam: ungraded/100" in out
 
 
 def test_dispatch_get_calendar_includes_event_time_and_location():
