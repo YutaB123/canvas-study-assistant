@@ -98,6 +98,22 @@
   .lec-ghost { background:var(--press); color:var(--text); }
   .lec-primary { background:var(--me); color:#fff; }
   .lec-primary:disabled { opacity:.6; cursor:default; }
+  #notifOverlay { position:fixed; inset:0; z-index:50; background:rgba(20,12,36,.5);
+    display:flex; align-items:center; justify-content:center; padding:18px; }
+  .notif-list { display:flex; flex-direction:column; gap:8px; margin:0 0 14px; }
+  .notif-row { display:flex; align-items:center; gap:10px; background:var(--bg); border:1px solid var(--line);
+    border-radius:12px; padding:10px 12px; font-size:14px; }
+  .notif-row .lbl { flex:1; }
+  .notif-row.off .lbl { opacity:.5; text-decoration:line-through; }
+  .notif-row button { border:none; background:none; cursor:pointer; font:inherit; font-size:13px; color:var(--link); padding:2px 4px; }
+  .notif-row button.del { color:#d9534f; }
+  .notif-empty { color:var(--muted); font-size:13px; padding:2px 0 6px; }
+  .notif-add { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding-top:6px; border-top:1px solid var(--line); }
+  .notif-add select, .notif-add input { background:var(--bg); color:var(--text); border:1px solid var(--line);
+    border-radius:10px; padding:8px 10px; font:inherit; outline:none; }
+  .notif-fields { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .notif-f { display:inline-flex; align-items:center; gap:6px; color:var(--muted); font-size:13px; }
+  .notif-f input[type=number] { width:64px; }
   .dots { display:inline-flex; gap:4px; }
   .dots i { width:7px; height:7px; border-radius:50%; background:var(--muted); display:block;
     animation:blink 1.3s infinite both; }
@@ -184,6 +200,8 @@
     <div class="sep"></div>
     <button id="mAddLecture">🎓 <span>Add lecture</span></button>
     <div class="sep"></div>
+    <button id="mNotifSchedule">⏰ <span>Reminders &amp; alerts</span></button>
+    <div class="sep"></div>
     <button id="mInstall" class="hidden">📲 <span>Install app</span></button>
     <div class="sep hidden" id="mInstallSep"></div>
     <button id="mClear">🗑️ <span>Clear chat</span></button>
@@ -235,6 +253,38 @@
     <div class="lec-actions">
       <button id="lecCancel" class="lec-ghost">Cancel</button>
       <button id="lecSave" class="lec-primary">Save lecture</button>
+    </div>
+  </div>
+</div>
+
+<div id="notifOverlay" class="hidden">
+  <div class="lec-card">
+    <h2>⏰ Reminders &amp; alerts</h2>
+    <p class="lec-hint">Get a notification on a schedule. You can also just tell Dubly in chat, e.g. "notify me when assignments are 24h away" or "remind me every morning what's due".</p>
+    <div id="notifList" class="notif-list"></div>
+    <div class="notif-add">
+      <select id="notifKind">
+        <option value="daily">Every day</option>
+        <option value="weekly">Every week</option>
+        <option value="due">Before each assignment is due</option>
+      </select>
+      <div class="notif-fields">
+        <label class="notif-f" id="notifTimeWrap">at <input id="notifTime" type="time" value="08:00" /></label>
+        <label class="notif-f hidden" id="notifDayWrap">on
+          <select id="notifDay">
+            <option value="mon">Mon</option><option value="tue">Tue</option>
+            <option value="wed">Wed</option><option value="thu">Thu</option>
+            <option value="fri">Fri</option><option value="sat">Sat</option>
+            <option value="sun">Sun</option>
+          </select>
+        </label>
+        <label class="notif-f hidden" id="notifHoursWrap"><input id="notifHours" type="number" min="1" max="336" value="24" /> hrs before</label>
+      </div>
+      <button id="notifAdd" class="lec-primary">Add</button>
+    </div>
+    <div id="notifStatus" class="lec-status"></div>
+    <div class="lec-actions">
+      <button id="notifClose" class="lec-ghost">Done</button>
     </div>
   </div>
 </div>
@@ -810,6 +860,59 @@ lecSaveBtn.addEventListener('click', async ()=>{
   } catch(e){ lecSetStatus(e.message, true); }
   finally { lecSaveBtn.disabled = false; }
 });
+// ---- notification schedule menu ----
+const notifOverlay = document.getElementById('notifOverlay');
+const notifList = document.getElementById('notifList');
+const notifKind = document.getElementById('notifKind');
+const notifStatus = document.getElementById('notifStatus');
+function notifSetStatus(msg, err){ notifStatus.textContent = msg||''; notifStatus.classList.toggle('err', !!err); }
+function notifSyncFields(){
+  const k = notifKind.value;
+  document.getElementById('notifTimeWrap').classList.toggle('hidden', k === 'due');
+  document.getElementById('notifDayWrap').classList.toggle('hidden', k !== 'weekly');
+  document.getElementById('notifHoursWrap').classList.toggle('hidden', k !== 'due');
+}
+notifKind.addEventListener('change', notifSyncFields);
+async function loadRules(){
+  notifList.innerHTML = '<div class="notif-empty">loading…</div>';
+  try {
+    const r = await api('/chat/notifications'); const d = await r.json();
+    const rules = d.rules || [];
+    if (!rules.length){ notifList.innerHTML = '<div class="notif-empty">No reminders yet — add one below.</div>'; return; }
+    notifList.innerHTML = '';
+    for (const rule of rules){
+      const row = document.createElement('div');
+      row.className = 'notif-row' + (rule.enabled ? '' : ' off');
+      const lbl = document.createElement('div'); lbl.className = 'lbl'; lbl.textContent = rule.label;
+      const tog = document.createElement('button'); tog.textContent = rule.enabled ? 'turn off' : 'turn on';
+      tog.addEventListener('click', async ()=>{ await api('/chat/notifications/'+rule.id+'/toggle', {method:'POST'}); loadRules(); });
+      const del = document.createElement('button'); del.className = 'del'; del.textContent = 'delete';
+      del.addEventListener('click', async ()=>{ await api('/chat/notifications/'+rule.id, {method:'DELETE'}); loadRules(); });
+      row.appendChild(lbl); row.appendChild(tog); row.appendChild(del);
+      notifList.appendChild(row);
+    }
+  } catch(e){ notifList.innerHTML = '<div class="notif-empty">couldn\'t load reminders.</div>'; }
+}
+function openNotif(){ notifOverlay.classList.remove('hidden'); notifSetStatus(''); notifSyncFields(); loadRules(); }
+function closeNotif(){ notifOverlay.classList.add('hidden'); }
+document.getElementById('mNotifSchedule').addEventListener('click', ()=>{ closeMenu(); openNotif(); });
+document.getElementById('notifClose').addEventListener('click', closeNotif);
+notifOverlay.addEventListener('click', e=>{ if (e.target === notifOverlay) closeNotif(); });
+document.getElementById('notifAdd').addEventListener('click', async ()=>{
+  const kind = notifKind.value;
+  const body = { kind };
+  if (kind !== 'due') body.time = document.getElementById('notifTime').value || '08:00';
+  if (kind === 'weekly') body.weekday = document.getElementById('notifDay').value;
+  if (kind === 'due') body.hours_before = parseInt(document.getElementById('notifHours').value || '24', 10);
+  notifSetStatus('adding…');
+  try {
+    const r = await api('/chat/notifications', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (!r.ok){ notifSetStatus(d.error || "couldn't add that", true); return; }
+    notifSetStatus('added: ' + (d.label||'')); loadRules();
+  } catch(e){ notifSetStatus("couldn't add that", true); }
+});
+
 // ---- one-click bookmarklet bridge (transcript pushed from a Panopto page) ----
 window.addEventListener('message', async (e)=>{
   let host = '';

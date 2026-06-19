@@ -72,6 +72,7 @@ class AppDeps:
     study_progress: Any = None # StudyProgressStore — flashcard SR + quiz attempts
     lectures: Any = None      # LectureStore — saved Panopto lecture transcripts
     transcriber: Any = None   # Transcriber — Whisper transcription of recordings
+    notifications: Any = None # NotificationService — scheduled digests/alerts
 
 
 def _filename_for(content_type: str, index: int = 0) -> str:
@@ -544,6 +545,49 @@ def build_app(deps: AppDeps) -> FastAPI:
             )
         return {"ok": True}
 
+    @app.get("/chat/notifications")
+    def notifications_list(x_chat_key: str = Header(default="")):
+        if not _web_authed(deps, x_chat_key):
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        if deps.notifications is None:
+            return {"rules": []}
+        return {"rules": deps.notifications.list_rules()}
+
+    @app.post("/chat/notifications")
+    def notifications_add(payload: dict = Body(...), x_chat_key: str = Header(default="")):
+        if not _web_authed(deps, x_chat_key):
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        if deps.notifications is None:
+            return JSONResponse({"error": "notifications unavailable"}, status_code=400)
+        kind = (payload.get("kind") or "").strip().lower()
+        if kind not in ("daily", "weekly", "due"):
+            return JSONResponse({"error": "bad kind"}, status_code=400)
+        rule = deps.notifications.add_rule(
+            kind=kind,
+            time=payload.get("time", ""),
+            weekday=payload.get("weekday", ""),
+            hours_before=payload.get("hours_before", 24),
+            message=payload.get("message", ""),
+        )
+        from app.notifications import describe
+        return {"id": rule["id"], "label": describe(rule)}
+
+    @app.post("/chat/notifications/{rule_id}/toggle")
+    def notifications_toggle(rule_id: str, x_chat_key: str = Header(default="")):
+        if not _web_authed(deps, x_chat_key):
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        if deps.notifications is None:
+            return JSONResponse({"error": "notifications unavailable"}, status_code=400)
+        return {"ok": deps.notifications.toggle(rule_id)}
+
+    @app.delete("/chat/notifications/{rule_id}")
+    def notifications_delete(rule_id: str, x_chat_key: str = Header(default="")):
+        if not _web_authed(deps, x_chat_key):
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        if deps.notifications is None:
+            return JSONResponse({"error": "notifications unavailable"}, status_code=400)
+        return {"ok": deps.notifications.remove_rule(rule_id)}
+
     @app.get("/chat/pushdebug")
     def push_debug(x_chat_key: str = Header(default="")):
         if not _web_authed(deps, x_chat_key):
@@ -791,10 +835,12 @@ def create_app() -> FastAPI:
         AlertStore,
         StudyProgressStore,
         LectureStore,
+        NotificationStore,
     )
     from app.transcribe import Transcriber
     from app.alerts import AlertService
     from app.reminders import ReminderService
+    from app.notifications import NotificationService
     from app.study import StudyService
     from app.onedrive import OneDriveClient
     from app.documents import DocumentService
@@ -862,9 +908,20 @@ def create_app() -> FastAPI:
         store=AlertStore(settings.data_dir / "alerts.sqlite"),
     )
 
+    # Student-configured notifications: daily/weekly digests, due-soon alerts,
+    # one-off "remind me in N min". Shares the persistent scheduler.
+    notifications = NotificationService(
+        scheduler=scheduler,
+        store=NotificationStore(settings.data_dir / "notifications.sqlite"),
+        canvas=canvas,
+        chats=chat_store,
+        push=push_service,
+    )
+
     def _on_started():
         scheduler.start()
         alerts.start()
+        notifications.start()
 
     anthropic_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     study = StudyService(
@@ -882,7 +939,7 @@ def create_app() -> FastAPI:
         public_base_url=settings.public_base_url,
         onedrive=onedrive,
     )
-    toolbox = ToolBox(canvas=canvas, reminders=reminders, study=study, documents=documents, lectures=lecture_store)
+    toolbox = ToolBox(canvas=canvas, reminders=reminders, study=study, documents=documents, lectures=lecture_store, notifications=notifications)
     # Personalize: greet the student by name instead of a generic "Dawg".
     try:
         _full = canvas.get_user_name()
@@ -925,5 +982,6 @@ def create_app() -> FastAPI:
         study_progress=StudyProgressStore(settings.data_dir / "study_progress.sqlite"),
         lectures=lecture_store,
         transcriber=transcriber,
+        notifications=notifications,
     )
     return build_app(deps)

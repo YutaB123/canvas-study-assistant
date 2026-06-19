@@ -25,7 +25,12 @@ _ACTIVE_SMS: Any = None
 def fire_reminder(message: str) -> None:
     """The job target. Kept at module level so it's importable by the job store."""
     if _ACTIVE_SMS is not None:
-        _ACTIVE_SMS.send(message)
+        # force the buzz when we can (web channel) so a scheduled reminder
+        # actually notifies even if the app is open; SmsClient ignores the kwarg.
+        try:
+            _ACTIVE_SMS.send(message, force=True)
+        except TypeError:
+            _ACTIVE_SMS.send(message)
 
 
 def _parse_when(when: str) -> datetime:

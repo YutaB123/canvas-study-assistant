@@ -269,6 +269,7 @@ class ToolBox:
         study=None,
         documents=None,
         lectures=None,
+        notifications=None,
         now: Callable[[], datetime] | None = None,
     ):
         self.canvas = canvas
@@ -276,6 +277,7 @@ class ToolBox:
         self.study = study
         self.documents = documents
         self.lectures = lectures
+        self.notifications = notifications
         self._now = now or (lambda: datetime.now(timezone.utc))
 
     # --- schema assembly -----------------------------------------------------
@@ -290,6 +292,8 @@ class ToolBox:
             schemas += self.documents.schemas()
         if self.lectures is not None:
             schemas += LECTURE_TOOLS
+        if self.notifications is not None:
+            schemas += self.notifications.schemas()
         return schemas
 
     # --- dispatch ------------------------------------------------------------
@@ -321,6 +325,8 @@ class ToolBox:
                 handler = lambda i: self.study.dispatch(name, i)
             elif self.documents is not None and name in self.documents.tool_names():
                 handler = lambda i: self.documents.dispatch(name, i)
+            elif self.notifications is not None and name in self.notifications.tool_names():
+                handler = lambda i: self.notifications.dispatch(name, i)
 
         if handler is None:
             return f"(unknown tool: {name})"

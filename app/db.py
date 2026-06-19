@@ -484,3 +484,94 @@ class LectureStore:
     def clear(self) -> None:
         self._db.execute("DELETE FROM lecture")
         self._db.commit()
+
+
+class NotificationStore:
+    """Recurring notification rules the student configures (daily/weekly digests,
+    due-soon alerts), plus a dedup log so a due-soon alert only fires once per
+    assignment per rule. One-off 'remind me in 2 min' jobs live in the scheduler,
+    not here.
+    """
+
+    def __init__(self, path: str | Path):
+        self.path = str(path)
+        self._db = sqlite3.connect(self.path, check_same_thread=False)
+        self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS notif_rule (
+                id           TEXT PRIMARY KEY,
+                kind         TEXT NOT NULL,          -- daily | weekly | due
+                hhmm         TEXT NOT NULL DEFAULT '08:00',
+                weekday      TEXT NOT NULL DEFAULT 'mon',
+                hours_before INTEGER NOT NULL DEFAULT 24,
+                message      TEXT NOT NULL DEFAULT '',
+                enabled      INTEGER NOT NULL DEFAULT 1,
+                created_at   TEXT NOT NULL DEFAULT ''
+            )
+            """
+        )
+        self._db.execute(
+            "CREATE TABLE IF NOT EXISTS notif_sent (key TEXT PRIMARY KEY)"
+        )
+        self._db.commit()
+
+    def save(self, rule: dict) -> None:
+        self._db.execute(
+            "INSERT OR REPLACE INTO notif_rule "
+            "(id, kind, hhmm, weekday, hours_before, message, enabled, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                rule["id"], rule["kind"], rule.get("hhmm", "08:00"),
+                rule.get("weekday", "mon"), int(rule.get("hours_before", 24)),
+                rule.get("message", ""), 1 if rule.get("enabled", True) else 0,
+                rule.get("created_at", ""),
+            ),
+        )
+        self._db.commit()
+
+    def _row(self, r) -> dict:
+        return {
+            "id": r[0], "kind": r[1], "hhmm": r[2], "weekday": r[3],
+            "hours_before": r[4], "message": r[5], "enabled": bool(r[6]),
+            "created_at": r[7],
+        }
+
+    def get(self, rule_id: str) -> dict | None:
+        row = self._db.execute(
+            "SELECT id, kind, hhmm, weekday, hours_before, message, enabled, created_at "
+            "FROM notif_rule WHERE id = ?", (rule_id,)
+        ).fetchone()
+        return self._row(row) if row else None
+
+    def list(self) -> list[dict]:
+        rows = self._db.execute(
+            "SELECT id, kind, hhmm, weekday, hours_before, message, enabled, created_at "
+            "FROM notif_rule ORDER BY created_at"
+        ).fetchall()
+        return [self._row(r) for r in rows]
+
+    def set_enabled(self, rule_id: str, enabled: bool) -> None:
+        self._db.execute(
+            "UPDATE notif_rule SET enabled = ? WHERE id = ?",
+            (1 if enabled else 0, rule_id),
+        )
+        self._db.commit()
+
+    def remove(self, rule_id: str) -> None:
+        self._db.execute("DELETE FROM notif_rule WHERE id = ?", (rule_id,))
+        self._db.commit()
+
+    def clear(self) -> None:
+        self._db.execute("DELETE FROM notif_rule")
+        self._db.execute("DELETE FROM notif_sent")
+        self._db.commit()
+
+    # --- dedup for due-soon alerts ---
+    def was_sent(self, key: str) -> bool:
+        return self._db.execute(
+            "SELECT 1 FROM notif_sent WHERE key = ?", (key,)
+        ).fetchone() is not None
+
+    def mark_sent(self, key: str) -> None:
+        self._db.execute("INSERT OR IGNORE INTO notif_sent (key) VALUES (?)", (key,))
+        self._db.commit()

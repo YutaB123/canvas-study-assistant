@@ -39,9 +39,13 @@ class WebClient:
         self.push = push
 
     def send(
-        self, text: str, to: str | None = None, media_url: list[str] | None = None
+        self, text: str, to: str | None = None, media_url: list[str] | None = None,
+        force: bool = False,
     ) -> None:
-        """Deliver an assistant message to the active chat (and fire a push)."""
+        """Deliver an assistant message to the active chat (and fire a push).
+
+        force=True buzzes even if the app is open — used for reminders the
+        student explicitly scheduled, so they actually get the notification."""
         text = no_em_dash(text)
         chat_id = _active_chat.get()
         if chat_id is None:
@@ -53,7 +57,7 @@ class WebClient:
                 preview = preview[:117] + "…"
             # Deep-link the notification to THIS chat so tapping it opens the
             # right conversation, not a fresh one.
-            self.push.notify("Dubly", preview, url=f"/chat?c={chat_id}")
+            self.push.notify("Dubly", preview, url=f"/chat?c={chat_id}", force=force)
 
     def send_typing(self, message_sid: str) -> bool:
         # The web UI shows its own typing dots while it waits for the reply.
