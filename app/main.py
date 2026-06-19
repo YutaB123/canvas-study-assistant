@@ -310,8 +310,7 @@ _CLEAR_CMDS = {"clear", "clear chat", "clear all", "clear everything", "reset"}
 
 GREETING = (
     "hey 🐾 i'm Dubly, your husky study buddy. ask me what's due, your grades, the syllabus, "
-    "anything canvas, or i can build you a study guide, quiz, or essay blueprint. you can also "
-    "add a lecture (⋯ menu) and i'll answer questions or make flashcards from it."
+    "anything canvas, or i can build you a study guide, quiz, or add a lecture."
 )
 
 
@@ -343,15 +342,14 @@ def _greeting_text(deps: AppDeps) -> str:
     if not courses:
         return (
             f"{hello} i'm Dubly, your husky study buddy. ask me what's due, your grades, the "
-            "syllabus, anything canvas, or i can build you a study guide, quiz, or essay blueprint."
+            "syllabus, anything canvas, or i can build you a study guide, quiz, or add a lecture."
         )
     lines = "\n".join(f"• {_course_label(c)}" for c in courses)
     return (
         f"{hello} i'm Dubly. here are the classes i see you're enrolled in this quarter:\n"
         f"{lines}\n\n"
         "ask me what's due, your grades, the syllabus, anything canvas, "
-        "or i can build you a study guide, quiz, or essay blueprint. you can also add a "
-        "lecture (⋯ menu) and i'll answer questions or make flashcards from it."
+        "or i can build you a study guide, quiz, or add a lecture."
     )
 
 
