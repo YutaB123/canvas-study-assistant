@@ -500,7 +500,13 @@ def build_app(deps: AppDeps) -> FastAPI:
 
     @app.get("/chat")
     def chat_page():
-        return FileResponse(STATIC_DIR / "chat.html", media_type="text/html")
+        # no-cache: always revalidate so a redeploy's new inline JS lands on the
+        # next load instead of being served stale from the browser's HTTP cache.
+        return FileResponse(
+            STATIC_DIR / "chat.html",
+            media_type="text/html",
+            headers={"Cache-Control": "no-cache"},
+        )
 
     @app.get("/manifest.webmanifest")
     def manifest():
@@ -513,7 +519,7 @@ def build_app(deps: AppDeps) -> FastAPI:
         return FileResponse(
             STATIC_DIR / "sw.js",
             media_type="application/javascript",
-            headers={"Service-Worker-Allowed": "/"},
+            headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"},
         )
 
     @app.get("/chat/config")
