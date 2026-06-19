@@ -570,10 +570,51 @@ document.getElementById('mNotify').addEventListener('click', async ()=>{ closeMe
   refreshNotifyLabel();
 });
 
-// ---- voice input: record a clip, transcribe with Whisper (works on iOS too,
-// unlike the Web Speech API). Tap to start, tap again to stop. ----
+// ---- voice input. Tap to start, tap again to stop. ----
+// Where the browser supports it (Android / desktop Chrome) use live speech
+// recognition so words appear in the box AS you speak. Fall back to
+// record-then-Whisper on iOS, where live recognition is unreliable.
 (function(){
   const micBtn = document.getElementById('mic');
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  // ---------- live path: interim results stream in as you talk ----------
+  if (SR && !isIOS){
+    let recog=null, listening=false, base='';
+    function start(){
+      recog = new SR();
+      recog.lang = 'en-US'; recog.continuous = true; recog.interimResults = true;
+      base = ta.value ? ta.value.replace(/\s+$/,'') + ' ' : '';
+      let finalTxt = '';
+      recog.onresult = (e)=>{
+        let interim = '';
+        for (let i=e.resultIndex; i<e.results.length; i++){
+          const t = e.results[i][0].transcript;
+          if (e.results[i].isFinal) finalTxt += t; else interim += t;
+        }
+        ta.value = base + finalTxt + interim;
+        ta.dispatchEvent(new Event('input'));
+      };
+      recog.onerror = (e)=>{
+        const err = (e && e.error) || '';
+        if (err === 'not-allowed' || err === 'service-not-allowed')
+          toast('mic is blocked — allow it for this site in your browser settings');
+        else if (err === 'no-speech') toast("didn't catch that — try again");
+        else if (err !== 'aborted') toast('voice error: ' + err);
+      };
+      recog.onend = ()=>{ listening=false; micBtn.classList.remove('listening'); ta.focus(); };
+      try { recog.start(); listening=true; micBtn.classList.add('listening'); }
+      catch(e){ toast('could not start voice'); }
+    }
+    micBtn.addEventListener('click', ()=>{
+      if (listening){ try { recog.stop(); } catch(e){} } else { start(); }
+    });
+    return;
+  }
+
+  // ---------- fallback path: record a clip, transcribe with Whisper on stop ----------
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder){
     micBtn.classList.add('hidden'); return;
   }
