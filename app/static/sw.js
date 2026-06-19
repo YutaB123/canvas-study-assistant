@@ -1,16 +1,23 @@
 // Service worker: caches the app shell, and shows push notifications so the
 // assistant can reach you even when the app is closed.
-const CACHE = 'dubly-v30';
+const CACHE = 'dubly-v31';
 const SHELL = ['/chat', '/manifest.webmanifest', '/static/icon-192.png', '/static/icon-badge.png', '/static/dubs.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
-  e.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
-      .then(() => self.clients.claim())
-  );
+  e.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)));
+    await self.clients.claim();
+    // Self-heal: a page open under a previous worker is still running that
+    // worker's (possibly stale) HTML/JS. Now that we control it and serve the
+    // fresh shell network-first, reload it so the new code takes over without
+    // the user having to clear caches or reinstall.
+    const wins = await self.clients.matchAll({ type: 'window' });
+    for (const c of wins) { try { c.navigate(c.url); } catch (_) {} }
+  })());
 });
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
