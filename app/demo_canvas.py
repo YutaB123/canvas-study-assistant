@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timedelta, timezone
 
+from app.timefmt import PACIFIC
 from app.canvas import (
     AssignmentDetail,
     AssignmentScore,
@@ -127,12 +128,12 @@ _DATA = {
 
 
 # Final exams, so "how long until my math final?" has a real date to count to.
-# (title, days from now, hour 24h, location). Kept inside the default 14-day
-# calendar window so they show up.
+# (title, days from now, Pacific hour 24h, minute, location). Kept inside the
+# default 14-day calendar window so they show up.
 _FINALS = {
-    "CSE 142": ("Final Exam", 11, 8, "Kane Hall 130"),
-    "MATH 126": ("Final Exam (cumulative)", 13, 14, "Smith Hall 205"),
-    "PSYCH 101": ("Final Exam", 9, 10, "Bagley Hall 154"),
+    "CSE 142": ("Final Exam", 11, 8, 30, "Kane Hall 130"),
+    "MATH 126": ("Final Exam (cumulative)", 13, 14, 30, "Smith Hall 205"),
+    "PSYCH 101": ("Final Exam", 9, 10, 0, "Bagley Hall 154"),
 }
 
 
@@ -244,10 +245,14 @@ class DemoCanvasClient(CanvasClient):
             fin = _FINALS.get(key)
             if not fin:
                 continue
-            title, days_out, hour, loc = fin
+            title, days_out, hour, minute, loc = fin
             if days_out <= days_ahead:
+                # build the time in Pacific (UW) so it reads as a real exam slot
+                start = (_now() + timedelta(days=days_out)).astimezone(PACIFIC).replace(
+                    hour=hour, minute=minute, second=0, microsecond=0
+                )
                 events.append(CalendarEvent(
-                    course=key, title=title, start_at=_in(days_out, hour),
+                    course=key, title=title, start_at=start,
                     location=loc, description=f"{key} {title.lower()}.",
                 ))
         events.sort(key=lambda e: e.start_at or _now())

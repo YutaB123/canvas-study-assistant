@@ -15,12 +15,14 @@ def test_demo_has_finals_on_calendar():
     assert all(e.start_at is not None for e in events)
 
 
-def test_calendar_tool_includes_day_count():
+def test_calendar_tool_includes_day_count_time_and_location():
+    import re
     tb = ToolBox(canvas=DemoCanvasClient())
     out = tb.dispatch("get_calendar", {"days_ahead": 14})
-    assert "MATH 126" in out
-    assert "in 13 days" in out          # the cumulative final, 13 days out
-    assert "Smith Hall 205" in out       # location carried through
+    line = next(l for l in out.splitlines() if "MATH 126" in l)
+    assert re.search(r"in \d+ days", line)   # an explicit countdown
+    assert "2:30pm" in line                  # built in Pacific (UW) time
+    assert "Smith Hall 205" in line          # location carried through
 
 
 def test_far_window_still_surfaces_math_final():

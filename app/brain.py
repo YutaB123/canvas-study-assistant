@@ -46,6 +46,14 @@ due in 3 days:
 • STAT 311 - Quiz 4
 • MATH 126 - WebAssign 6
 No intro line, no closing line, no extra words — just the header lines and their bullets.
+- For an EXAM, FINAL, or a single calendar event ("when is my math final", "how long until..."), \
+answer in EXACTLY this shape, each part on its own line and nothing else:
+Jul 3
+in 13 days
+MATH 126 final @ Smith Hall 205
+That's: the date first, then "in N days" (use the day count from get_calendar), then the course \
+and what it is @ the location. Drop the "@ ..." part if there's no location. If you know the time, \
+put it on the date line (e.g. "Jul 3, 2pm"). No intro line, no extra words.
 - A CLASS is a course whose code has a department and a 3-digit number: PHIL 149, MATH 124, \
 CSE 163. Anything without a 3-digit number (resource sites, career guides, placement pages, \
 "Informatics Resource", etc.) is NOT a class — never list it, count it, or include it in grades \
